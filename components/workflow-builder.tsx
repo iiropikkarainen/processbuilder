@@ -31,6 +31,7 @@ import { ProcessNode } from "./nodes/process-node"
 import { ConditionalNode } from "./nodes/conditional-node"
 import { CodeNode } from "./nodes/code-node"
 import { generateNodeId, createNode } from "@/lib/workflow-utils"
+import { cn } from "@/lib/utils"
 import type { WorkflowNode } from "@/lib/types"
 
 const nodeTypes: NodeTypes = {
@@ -45,7 +46,11 @@ const edgeTypes: EdgeTypes = {
   custom: CustomEdge,
 }
 
-export default function WorkflowBuilder() {
+type WorkflowBuilderProps = {
+  className?: string
+}
+
+export default function WorkflowBuilder({ className }: WorkflowBuilderProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -199,7 +204,7 @@ export default function WorkflowBuilder() {
   }
 
   return (
-    <div className="flex h-screen">
+    <div className={cn("flex h-full min-h-[600px] w-full bg-white", className)}>
       <div className="w-64 border-r border-gray-200 p-4 bg-gray-50">
         <h2 className="text-lg font-semibold mb-4">Node Library</h2>
         <NodeLibrary />
