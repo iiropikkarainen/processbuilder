@@ -24,6 +24,7 @@ export const createNode = ({
     data: {
       label: getDefaultLabel(type),
       description: getDefaultDescription(type),
+      tasks: [],
     },
   }
 
