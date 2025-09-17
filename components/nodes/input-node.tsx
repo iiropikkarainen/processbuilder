@@ -4,8 +4,9 @@ import { memo } from "react"
 import { Handle, Position, type NodeProps } from "reactflow"
 import { Database } from "lucide-react"
 import type { NodeData } from "@/lib/types"
+import { NodeTaskList } from "./node-task-list"
 
-export const InputNode = memo(({ data, isConnectable }: NodeProps<NodeData>) => {
+export const InputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) => {
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-blue-500 min-w-[150px]">
       <div className="flex items-center">
@@ -19,6 +20,16 @@ export const InputNode = memo(({ data, isConnectable }: NodeProps<NodeData>) => 
       </div>
 
       {data.dataSource && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Source: {data.dataSource}</div>}
+
+      <NodeTaskList
+        nodeId={id}
+        tasks={data.tasks ?? []}
+        availableTasks={data.availableTasks}
+        onAddTask={data.createTask}
+        onAttachTask={data.assignTask}
+        onDueDateChange={data.updateTaskDueDate}
+        onMarkDone={data.markTaskDone}
+      />
 
       <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-3 h-3 bg-blue-500" />
     </div>
