@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic"
+
 import OpsCatalog from "@/components/ops-catalog"
 import { Avatar } from "@/components/avatar"
 import {
