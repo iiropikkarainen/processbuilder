@@ -319,17 +319,15 @@ const ProcessView = ({ tasks, setTasks }: ProcessViewProps) => {
   )
 
   return (
-    <div className="min-h-[600px] overflow-hidden rounded-2xl border bg-white shadow-sm">
-      <WorkflowBuilder
-        className="bg-white"
-        tasks={tasks}
-        availableTasks={unassignedTasks}
-        onAssignTask={assignTaskToNode}
-        onUpdateTaskDueDate={handleDueDateChange}
-        onMarkTaskDone={handleMarkDone}
-        onCreateTask={handleCreateTask}
-      />
-    </div>
+    <WorkflowBuilder
+      className="h-full bg-white"
+      tasks={tasks}
+      availableTasks={unassignedTasks}
+      onAssignTask={assignTaskToNode}
+      onUpdateTaskDueDate={handleDueDateChange}
+      onMarkTaskDone={handleMarkDone}
+      onCreateTask={handleCreateTask}
+    />
   )
 }
 
@@ -971,9 +969,9 @@ export default function OpsCatalog() {
             )}
           </div>
 
-          <div className="flex-1 min-h-0 overflow-hidden p-4">
+          <div className="flex-1 min-h-0 overflow-hidden">
             {!selectedSOP ? (
-              <div className="text-sm text-gray-500">
+              <div className="p-4 text-sm text-gray-500">
                 Select an SOP from the left to preview.
               </div>
             ) : (
@@ -999,7 +997,7 @@ export default function OpsCatalog() {
                 </div>
                 <div
                   className={cn(
-                    "flex h-full flex-col overflow-y-auto",
+                    "flex h-full flex-col overflow-y-auto p-4",
                     viewMode !== "calendar" && "hidden",
                   )}
                 >
@@ -1007,7 +1005,7 @@ export default function OpsCatalog() {
                 </div>
                 <div
                   className={cn(
-                    "flex h-full flex-col overflow-y-auto",
+                    "flex h-full flex-col overflow-y-auto p-4",
                     viewMode !== "settings" && "hidden",
                   )}
                 >
