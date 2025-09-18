@@ -561,7 +561,7 @@ const Editor = ({ content, onChange }: EditorProps) => {
         contentEditable
         suppressContentEditableWarning
         onInput={handleInput}
-        className="min-h-[300px] w-full rounded-xl border bg-white p-4 text-sm leading-6 shadow-sm focus:outline-none"
+        className="min-h-[300px] w-full bg-transparent p-4 text-sm leading-6 focus:outline-none"
       />
       <SlashMenu position={slashPos} onSelect={handleSelect} />
     </div>
@@ -1619,7 +1619,7 @@ Describe the goal of the procedure.
                                       <button
                                         onClick={() => {
                                           setSelectedSOP(sop)
-                                          setViewMode("process")
+                                          setViewMode("editor")
                                         }}
                                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
                                       >
