@@ -211,6 +211,11 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
     }
   }
 
+  const hasTaskManagement =
+    (node.data.tasks?.length ?? 0) > 0 ||
+    (node.data.availableTasks?.length ?? 0) > 0 ||
+    Boolean(node.data.createTask)
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -245,27 +250,31 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
           <Label htmlFor="required">Required Node</Label>
         </div>
 
+        {hasTaskManagement ? (
+          <div>
+            <p className="text-xs text-gray-500">
+              Manage this node&apos;s checklist, set due dates, and mark work complete without leaving the
+              configuration view.
+            </p>
+
+            <NodeTaskList
+              nodeId={node.id}
+              tasks={node.data.tasks ?? []}
+              availableTasks={node.data.availableTasks}
+              onAddTask={node.data.createTask}
+              onAttachTask={node.data.assignTask}
+              onDueDateChange={node.data.updateTaskDueDate}
+              onMarkDone={node.data.markTaskDone}
+              className="mt-2"
+            />
+          </div>
+        ) : null}
+
         <div className="border-t border-gray-200 my-4"></div>
 
         {renderInputFields()}
 
         <div className="border-t border-gray-200 my-4"></div>
-
-        <p className="text-xs text-gray-500">
-          Manage this node&apos;s checklist, set due dates, and mark work complete without leaving the
-          configuration view.
-        </p>
-
-        <NodeTaskList
-          nodeId={node.id}
-          tasks={node.data.tasks ?? []}
-          availableTasks={node.data.availableTasks}
-          onAddTask={node.data.createTask}
-          onAttachTask={node.data.assignTask}
-          onDueDateChange={node.data.updateTaskDueDate}
-          onMarkDone={node.data.markTaskDone}
-          className="mt-2"
-        />
       </div>
     </div>
   )
