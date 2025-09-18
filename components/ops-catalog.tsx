@@ -909,8 +909,10 @@ export default function OpsCatalog() {
 
         <div
           className={cn(
-            "flex flex-col rounded-2xl border bg-white shadow-sm",
-            fullscreen ? "fixed inset-0 z-50 m-4" : "",
+            "flex flex-col bg-white",
+            fullscreen
+              ? "fixed inset-0 z-50 h-screen w-screen rounded-none border-0 shadow-none"
+              : "rounded-2xl border shadow-sm",
           )}
         >
           <div className="flex items-center justify-between border-b px-4 py-3">
@@ -969,7 +971,7 @@ export default function OpsCatalog() {
             )}
           </div>
 
-          <div className="flex-1 p-4">
+          <div className="flex-1 min-h-0 overflow-hidden p-4">
             {!selectedSOP ? (
               <div className="text-sm text-gray-500">
                 Select an SOP from the left to preview.
