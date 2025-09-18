@@ -17,8 +17,11 @@ import {
   ListChecks,
   Maximize2,
   Minimize2,
+  Pencil,
+  Plus,
   Search,
   Settings,
+  Trash2,
 } from "lucide-react"
 
 import { Checkbox } from "@/components/ui/checkbox"
@@ -119,6 +122,302 @@ Ensure accurate, timely payroll.
       },
     ],
   },
+  {
+    id: "human-resources",
+    title: "Human Resources",
+    subcategories: [{ id: "hr-onboarding", title: "Employee Onboarding" }],
+    sops: [
+      {
+        id: "sop-hr-onboarding",
+        title: "New Hire Onboarding Checklist",
+        subcategoryId: "hr-onboarding",
+        owner: "HR Lead",
+        lastUpdated: "2025-08-01",
+        content: `# SOP: New Hire Onboarding Checklist
+
+**Category:** Human Resources
+**System of Record:** BambooHR
+
+## Purpose
+Welcome and equip new employees.
+
+## Process
+1. Send welcome email and schedule orientation.
+2. Collect required paperwork.
+3. Assign mentor and first-week plan.`,
+        processSettings: {
+          owner: "HR Lead",
+          processType: "recurring",
+          recurrence: {
+            frequency: "weekly",
+            customDays: [],
+            time: "10:00",
+            timezone: "America/New_York",
+          },
+          vaultAccess: ["Notion", "Slack"],
+        },
+      },
+    ],
+  },
+  {
+    id: "sales-business",
+    title: "Sales & Business Development",
+    subcategories: [{ id: "sales-pipeline", title: "Pipeline Management" }],
+    sops: [
+      {
+        id: "sop-sales-pipeline",
+        title: "Quarterly Pipeline Review",
+        subcategoryId: "sales-pipeline",
+        owner: "Sales Director",
+        lastUpdated: "2025-07-12",
+        content: `# SOP: Quarterly Pipeline Review
+
+**Category:** Sales & Business Development
+**System of Record:** Salesforce
+
+## Purpose
+Keep pipeline data clean and forecast accurate.
+
+## Process
+1. Export current pipeline report.
+2. Validate stages with account executives.
+3. Update forecast assumptions.`,
+        processSettings: {
+          owner: "Sales Director",
+          processType: "recurring",
+          recurrence: {
+            frequency: "quarterly",
+            customDays: [],
+            time: "14:00",
+            timezone: "America/Los_Angeles",
+          },
+          vaultAccess: ["Salesforce", "Notion"],
+        },
+      },
+    ],
+  },
+  {
+    id: "customer-support",
+    title: "Customer Support",
+    subcategories: [{ id: "support-escalation", title: "Escalation Management" }],
+    sops: [
+      {
+        id: "sop-support-escalation",
+        title: "Critical Incident Escalation",
+        subcategoryId: "support-escalation",
+        owner: "Customer Support Lead",
+        lastUpdated: "2025-06-20",
+        content: `# SOP: Critical Incident Escalation
+
+**Category:** Customer Support
+**System of Record:** Zendesk
+
+## Purpose
+Ensure urgent cases are resolved quickly.
+
+## Process
+1. Flag incident priority in ticketing system.
+2. Notify on-call specialist and product owner.
+3. Post resolution summary to status page.`,
+        processSettings: {
+          owner: "Customer Support Lead",
+          processType: "recurring",
+          recurrence: {
+            frequency: "daily",
+            customDays: [],
+            time: "08:00",
+            timezone: "UTC",
+          },
+          vaultAccess: ["Slack", "Zendesk"],
+        },
+      },
+    ],
+  },
+  {
+    id: "it-security",
+    title: "IT & Security",
+    subcategories: [{ id: "it-access", title: "Access Management" }],
+    sops: [
+      {
+        id: "sop-it-provisioning",
+        title: "Provisioning New Employee Accounts",
+        subcategoryId: "it-access",
+        owner: "IT Administrator",
+        lastUpdated: "2025-09-05",
+        content: `# SOP: Provisioning New Employee Accounts
+
+**Category:** IT & Security
+**System of Record:** Okta
+
+## Purpose
+Provide secure access to required systems.
+
+## Process
+1. Create core identity in Okta.
+2. Assign application groups based on role.
+3. Send credentials and security policy.`,
+        processSettings: {
+          owner: "IT Administrator",
+          processType: "recurring",
+          recurrence: {
+            frequency: "weekly",
+            customDays: ["monday"],
+            time: "11:00",
+            timezone: "UTC",
+          },
+          vaultAccess: ["Okta", "Jira"],
+        },
+      },
+    ],
+  },
+  {
+    id: "marketing-communications",
+    title: "Marketing & Communications",
+    subcategories: [{ id: "marketing-campaign", title: "Campaign Production" }],
+    sops: [
+      {
+        id: "sop-marketing-newsletter",
+        title: "Weekly Newsletter Production",
+        subcategoryId: "marketing-campaign",
+        owner: "Marketing Manager",
+        lastUpdated: "2025-05-18",
+        content: `# SOP: Weekly Newsletter Production
+
+**Category:** Marketing & Communications
+**System of Record:** HubSpot
+
+## Purpose
+Deliver timely customer communications.
+
+## Process
+1. Draft newsletter outline and key message.
+2. Collect product and customer updates.
+3. Schedule send and monitor metrics.`,
+        processSettings: {
+          owner: "Marketing Manager",
+          processType: "recurring",
+          recurrence: {
+            frequency: "weekly",
+            customDays: ["wednesday"],
+            time: "15:00",
+            timezone: "Europe/London",
+          },
+          vaultAccess: ["Notion", "Slack"],
+        },
+      },
+    ],
+  },
+  {
+    id: "operations-logistics",
+    title: "Operations & Logistics",
+    subcategories: [{ id: "ops-inventory", title: "Inventory" }],
+    sops: [
+      {
+        id: "sop-ops-inventory",
+        title: "Monthly Inventory Reconciliation",
+        subcategoryId: "ops-inventory",
+        owner: "Operations Manager",
+        lastUpdated: "2025-04-09",
+        content: `# SOP: Monthly Inventory Reconciliation
+
+**Category:** Operations & Logistics
+**System of Record:** NetSuite
+
+## Purpose
+Keep stock counts accurate for planning.
+
+## Process
+1. Download warehouse counts.
+2. Investigate variances over 5%.
+3. Post adjustments for approval.`,
+        processSettings: {
+          owner: "Operations Manager",
+          processType: "recurring",
+          recurrence: {
+            frequency: "monthly",
+            customDays: [],
+            time: "09:30",
+            timezone: "America/New_York",
+          },
+          vaultAccess: ["NetSuite", "Slack"],
+        },
+      },
+    ],
+  },
+  {
+    id: "product-engineering",
+    title: "Product & Engineering",
+    subcategories: [{ id: "product-release", title: "Release Management" }],
+    sops: [
+      {
+        id: "sop-product-release",
+        title: "Product Release Go-Live Checklist",
+        subcategoryId: "product-release",
+        owner: "Product Manager",
+        lastUpdated: "2025-03-15",
+        content: `# SOP: Product Release Go-Live Checklist
+
+**Category:** Product & Engineering
+**System of Record:** Jira
+
+## Purpose
+Coordinate smooth release deployments.
+
+## Process
+1. Freeze code and tag release candidate.
+2. Complete regression testing sign-off.
+3. Publish release notes to stakeholders.`,
+        processSettings: {
+          owner: "Product Manager",
+          processType: "recurring",
+          recurrence: {
+            frequency: "monthly",
+            customDays: [],
+            time: "13:00",
+            timezone: "UTC",
+          },
+          vaultAccess: ["Jira", "Slack"],
+        },
+      },
+    ],
+  },
+  {
+    id: "legal-compliance",
+    title: "Legal & Compliance",
+    subcategories: [{ id: "legal-contract", title: "Contract Review" }],
+    sops: [
+      {
+        id: "sop-legal-contract",
+        title: "Standard Contract Review Workflow",
+        subcategoryId: "legal-contract",
+        owner: "Legal Counsel",
+        lastUpdated: "2025-02-22",
+        content: `# SOP: Standard Contract Review Workflow
+
+**Category:** Legal & Compliance
+**System of Record:** Ironclad
+
+## Purpose
+Ensure consistent legal risk evaluation.
+
+## Process
+1. Log request and classify agreement type.
+2. Review clauses against playbook.
+3. Send final approval summary to requestor.`,
+        processSettings: {
+          owner: "Legal Counsel",
+          processType: "recurring",
+          recurrence: {
+            frequency: "weekly",
+            customDays: ["tuesday"],
+            time: "16:00",
+            timezone: "America/New_York",
+          },
+          vaultAccess: ["Notion", "Slack"],
+        },
+      },
+    ],
+  },
 ]
 
 const slashMenuOptions = [
@@ -134,6 +433,11 @@ const OWNER_OPTIONS = [
   "Operations Manager",
   "HR Lead",
   "IT Administrator",
+  "Sales Director",
+  "Customer Support Lead",
+  "Marketing Manager",
+  "Product Manager",
+  "Legal Counsel",
 ]
 
 const TIMEZONE_OPTIONS = [
@@ -155,6 +459,12 @@ const DAY_OPTIONS = [
 ]
 
 const VAULT_OPTIONS = ["Deel", "Slack", "Jira", "Salesforce", "Notion"]
+
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)+/g, "")
 
 interface SlashMenuProps {
   position: SlashMenuPosition | null
@@ -765,20 +1075,300 @@ export default function OpsCatalog() {
   )
   const [tasks, setTasks] = useState<Task[]>([])
   const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
+  const [newCategoryTitle, setNewCategoryTitle] = useState("")
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategoryTitle, setEditingCategoryTitle] = useState("")
+  const [newSopInputs, setNewSopInputs] = useState<
+    Record<string, { title: string; owner: string; content: string }>
+  >({})
+  const [editingSop, setEditingSop] = useState<
+    { id: string; categoryId: string; title: string; owner: string } | null
+  >(null)
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
 
   const updateSOP = (id: string, newContent: string) => {
+    const today = new Date().toISOString().split("T")[0]
+
     setData((prev) =>
       prev.map((category) => ({
         ...category,
-        sops: category.sops.map((sop) => (sop.id === id ? { ...sop, content: newContent } : sop)),
+        sops: category.sops.map((sop) =>
+          sop.id === id ? { ...sop, content: newContent, lastUpdated: today } : sop,
+        ),
       })),
     )
 
     if (selectedSOP?.id === id) {
-      setSelectedSOP((prev) => (prev ? { ...prev, content: newContent } : prev))
+      setSelectedSOP((prev) =>
+        prev ? { ...prev, content: newContent, lastUpdated: today } : prev,
+      )
     }
+  }
+
+  const handleAddCategory = () => {
+    const trimmed = newCategoryTitle.trim()
+    if (!trimmed) return
+
+    const baseId = slugify(trimmed) || `category-${Date.now()}`
+    const uniqueId = data.some((category) => category.id === baseId)
+      ? `${baseId}-${Date.now()}`
+      : baseId
+    const defaultSubcategoryId = `${uniqueId}-general`
+
+    const nextCategory: Category = {
+      id: uniqueId,
+      title: trimmed,
+      subcategories: [{ id: defaultSubcategoryId, title: "General" }],
+      sops: [],
+    }
+
+    setData((prev) => [...prev, nextCategory])
+    setExpanded((prev) => ({ ...prev, [uniqueId]: true }))
+    setNewCategoryTitle("")
+  }
+
+  const startEditCategory = (category: Category) => {
+    setEditingCategoryId(category.id)
+    setEditingCategoryTitle(category.title)
+  }
+
+  const cancelEditCategory = () => {
+    setEditingCategoryId(null)
+    setEditingCategoryTitle("")
+  }
+
+  const saveCategoryTitle = () => {
+    if (!editingCategoryId) return
+    const trimmed = editingCategoryTitle.trim()
+    if (!trimmed) return
+
+    setData((prev) =>
+      prev.map((category) =>
+        category.id === editingCategoryId ? { ...category, title: trimmed } : category,
+      ),
+    )
+
+    setEditingCategoryId(null)
+    setEditingCategoryTitle("")
+  }
+
+  const handleDeleteCategory = (categoryId: string) => {
+    const category = data.find((item) => item.id === categoryId)
+    if (!category) return
+
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        `Delete category "${category.title}" and all associated SOPs?`,
+      )
+      if (!confirmed) return
+    }
+
+    const containsSelected = selectedSOP
+      ? category.sops.some((sop) => sop.id === selectedSOP.id)
+      : false
+
+    setData((prev) => prev.filter((item) => item.id !== categoryId))
+    setExpanded((prev) => {
+      const next = { ...prev }
+      delete next[categoryId]
+      return next
+    })
+
+    setNewSopInputs((prev) => {
+      const next = { ...prev }
+      delete next[categoryId]
+      return next
+    })
+
+    if (editingCategoryId === categoryId) {
+      cancelEditCategory()
+    }
+
+    if (editingSop?.categoryId === categoryId) {
+      setEditingSop(null)
+    }
+
+    if (containsSelected) {
+      setSelectedSOP(null)
+    }
+  }
+
+  const handleNewSopInputChange = (
+    categoryId: string,
+    field: "title" | "owner" | "content",
+    value: string,
+  ) => {
+    setNewSopInputs((prev) => {
+      const existing = prev[categoryId] ?? {
+        title: "",
+        owner: OWNER_OPTIONS[0] ?? "",
+        content: "",
+      }
+
+      return {
+        ...prev,
+        [categoryId]: {
+          ...existing,
+          [field]: value,
+        },
+      }
+    })
+  }
+
+  const handleAddSop = (categoryId: string) => {
+    const category = data.find((item) => item.id === categoryId)
+    if (!category) return
+
+    const form = newSopInputs[categoryId] ?? {
+      title: "",
+      owner: OWNER_OPTIONS[0] ?? "",
+      content: "",
+    }
+
+    const trimmedTitle = form.title.trim()
+    if (!trimmedTitle) return
+
+    const owner = form.owner.trim() || OWNER_OPTIONS[0] || "Process Owner"
+    const content = form.content.trim()
+      ? form.content
+      : `# SOP: ${trimmedTitle}
+
+## Purpose
+Describe the goal of the procedure.
+
+## Process
+1. Document the first step.
+2. Capture supporting tasks.
+3. Confirm completion with stakeholders.`
+
+    const today = new Date().toISOString().split("T")[0]
+    const baseId = slugify(trimmedTitle) || "sop"
+    const sopId = `${baseId}-${Date.now()}`
+    const firstSubcategoryId = category.subcategories[0]?.id ?? `${categoryId}-general`
+
+    const newSop: Sop = {
+      id: sopId,
+      title: trimmedTitle,
+      subcategoryId: firstSubcategoryId,
+      owner,
+      lastUpdated: today,
+      content,
+      processSettings: {
+        owner,
+        processType: "one-time",
+        recurrence: {
+          frequency: "monthly",
+          customDays: [],
+          time: "09:00",
+          timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
+        },
+        vaultAccess: [],
+      },
+    }
+
+    setData((prev) =>
+      prev.map((item) => {
+        if (item.id !== categoryId) return item
+
+        const hasSubcategories = item.subcategories.length > 0
+        return {
+          ...item,
+          subcategories: hasSubcategories
+            ? item.subcategories
+            : [{ id: firstSubcategoryId, title: "General" }],
+          sops: [...item.sops, newSop],
+        }
+      }),
+    )
+
+    setNewSopInputs((prev) => ({
+      ...prev,
+      [categoryId]: { title: "", owner, content: "" },
+    }))
+  }
+
+  const handleDeleteSop = (categoryId: string, sopId: string) => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm("Delete this SOP?")
+      if (!confirmed) return
+    }
+
+    setData((prev) =>
+      prev.map((category) =>
+        category.id === categoryId
+          ? { ...category, sops: category.sops.filter((sop) => sop.id !== sopId) }
+          : category,
+      ),
+    )
+
+    if (selectedSOP?.id === sopId) {
+      setSelectedSOP(null)
+    }
+
+    if (editingSop?.id === sopId) {
+      setEditingSop(null)
+    }
+  }
+
+  const startEditSop = (categoryId: string, sop: Sop) => {
+    setEditingSop({
+      id: sop.id,
+      categoryId,
+      title: sop.title,
+      owner: sop.owner,
+    })
+  }
+
+  const cancelEditSop = () => {
+    setEditingSop(null)
+  }
+
+  const saveSopEdit = () => {
+    if (!editingSop) return
+
+    const trimmedTitle = editingSop.title.trim()
+    if (!trimmedTitle) return
+
+    const owner = editingSop.owner.trim() || OWNER_OPTIONS[0] || "Process Owner"
+    const today = new Date().toISOString().split("T")[0]
+
+    setData((prev) =>
+      prev.map((category) => {
+        if (category.id !== editingSop.categoryId) return category
+
+        return {
+          ...category,
+          sops: category.sops.map((sop) =>
+            sop.id === editingSop.id
+              ? {
+                  ...sop,
+                  title: trimmedTitle,
+                  owner,
+                  lastUpdated: today,
+                  processSettings: { ...sop.processSettings, owner },
+                }
+              : sop,
+          ),
+        }
+      }),
+    )
+
+    if (selectedSOP?.id === editingSop.id) {
+      setSelectedSOP((prev) =>
+        prev
+          ? {
+              ...prev,
+              title: trimmedTitle,
+              owner,
+              lastUpdated: today,
+              processSettings: { ...prev.processSettings, owner },
+            }
+          : prev,
+      )
+    }
+
+    setEditingSop(null)
   }
 
   const handleProcessSettingsChange = (settings: ProcessSettings) => {
@@ -853,55 +1443,259 @@ export default function OpsCatalog() {
       >
         {!fullscreen && (
           <div className="space-y-4">
-            {filteredData.map((category) => (
-              <div
-                key={category.id}
-                className="overflow-hidden rounded-2xl border bg-white shadow-sm"
-              >
-                <button
-                  onClick={() => toggle(category.id)}
-                  className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
-                >
-                  <div className="flex items-center gap-3">
-                    {expanded[category.id] ? (
-                      <ChevronDown className="h-5 w-5" />
-                    ) : (
-                      <ChevronRight className="h-5 w-5" />
-                    )}
-                    <span className="font-semibold">{category.title}</span>
-                  </div>
-                </button>
-
-                {expanded[category.id] && (
-                  <div className="transition-all">
-                    <ul className="divide-y">
-                      {category.sops.map((sop) => (
-                        <li key={sop.id} className="flex items-center justify-between p-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            <FileText className="h-5 w-5 shrink-0" />
-                            <div className="min-w-0">
-                              <div className="truncate font-medium">{sop.title}</div>
-                              <div className="truncate text-xs text-gray-500">
-                                {sop.owner} • Updated {sop.lastUpdated}
-                              </div>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setSelectedSOP(sop)
-                              setViewMode("process")
-                            }}
-                            className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
-                          >
-                            Open SOP
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Add category</h3>
+                <p className="text-xs text-gray-500">
+                  Group related SOPs by department or team.
+                </p>
               </div>
-            ))}
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Input
+                  value={newCategoryTitle}
+                  onChange={(event) => setNewCategoryTitle(event.target.value)}
+                  placeholder="e.g. Facilities Management"
+                  className="flex-1"
+                />
+                <button
+                  onClick={handleAddCategory}
+                  disabled={!newCategoryTitle.trim()}
+                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              </div>
+            </div>
+
+            {filteredData.map((category) => {
+              const sopForm =
+                newSopInputs[category.id] ?? {
+                  title: "",
+                  owner: OWNER_OPTIONS[0] ?? "",
+                  content: "",
+                }
+              const isEditingCategory = editingCategoryId === category.id
+              const newSopDisabled = !sopForm.title.trim()
+
+              return (
+                <div
+                  key={category.id}
+                  className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2 px-4 py-3">
+                    {isEditingCategory ? (
+                      <div className="flex flex-1 items-center gap-2">
+                        <Input
+                          value={editingCategoryTitle}
+                          onChange={(event) => setEditingCategoryTitle(event.target.value)}
+                          className="h-9"
+                          placeholder="Update category name"
+                        />
+                        <button
+                          onClick={saveCategoryTitle}
+                          disabled={!editingCategoryTitle.trim()}
+                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEditCategory}
+                          className="rounded-lg border px-3 py-2 text-xs hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => toggle(category.id)}
+                          className="flex flex-1 items-center gap-3 text-left"
+                        >
+                          {expanded[category.id] ? (
+                            <ChevronDown className="h-5 w-5" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5" />
+                          )}
+                          <span className="font-semibold">{category.title}</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => startEditCategory(category)}
+                            className="rounded-lg border p-2 hover:bg-gray-50"
+                            aria-label={`Edit ${category.title}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCategory(category.id)}
+                            className="rounded-lg border p-2 text-red-600 hover:bg-red-50"
+                            aria-label={`Delete ${category.title}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {expanded[category.id] && (
+                    <div className="transition-all">
+                      <ul className="divide-y">
+                        {category.sops.map((sop) => {
+                          const isEditingSop = editingSop?.id === sop.id
+
+                          return (
+                            <li key={sop.id} className="space-y-2 p-3">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex min-w-0 flex-1 items-start gap-3">
+                                  <FileText className="mt-1 h-5 w-5 shrink-0" />
+                                  <div className="min-w-0 space-y-2">
+                                    {isEditingSop ? (
+                                      <Input
+                                        value={editingSop?.title ?? sop.title}
+                                        onChange={(event) =>
+                                          setEditingSop((prev) =>
+                                            prev && prev.id === sop.id
+                                              ? { ...prev, title: event.target.value }
+                                              : prev,
+                                          )
+                                        }
+                                        className="h-9"
+                                        placeholder="Update SOP title"
+                                      />
+                                    ) : (
+                                      <>
+                                        <div className="truncate font-medium">{sop.title}</div>
+                                        <div className="truncate text-xs text-gray-500">
+                                          {sop.owner} • Updated {sop.lastUpdated}
+                                        </div>
+                                      </>
+                                    )}
+
+                                    {isEditingSop && (
+                                      <div className="space-y-1">
+                                        <Label className="text-xs uppercase tracking-wide text-gray-500">
+                                          Owner
+                                        </Label>
+                                        <select
+                                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                                          value={editingSop?.owner ?? sop.owner}
+                                          onChange={(event) =>
+                                            setEditingSop((prev) =>
+                                              prev && prev.id === sop.id
+                                                ? { ...prev, owner: event.target.value }
+                                                : prev,
+                                            )
+                                          }
+                                        >
+                                          {OWNER_OPTIONS.map((owner) => (
+                                            <option key={owner} value={owner}>
+                                              {owner}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-shrink-0 items-center gap-2">
+                                  {isEditingSop ? (
+                                    <>
+                                      <button
+                                        onClick={saveSopEdit}
+                                        className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
+                                      >
+                                        Save
+                                      </button>
+                                      <button
+                                        onClick={cancelEditSop}
+                                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedSOP(sop)
+                                          setViewMode("process")
+                                        }}
+                                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
+                                      >
+                                        Open SOP
+                                      </button>
+                                      <button
+                                        onClick={() => startEditSop(category.id, sop)}
+                                        className="rounded-lg border p-2 hover:bg-gray-50"
+                                        aria-label={`Edit ${sop.title}`}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSop(category.id, sop.id)}
+                                        className="rounded-lg border p-2 text-red-600 hover:bg-red-50"
+                                        aria-label={`Delete ${sop.title}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+
+                      <div className="space-y-3 border-t bg-gray-50 p-4">
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-900">Add SOP</h4>
+                          <p className="text-xs text-gray-500">
+                            Capture a quick description and starter steps.
+                          </p>
+                        </div>
+                        <Input
+                          value={sopForm.title}
+                          onChange={(event) =>
+                            handleNewSopInputChange(category.id, "title", event.target.value)
+                          }
+                          placeholder="SOP title"
+                        />
+                        <select
+                          className="w-full rounded-lg border px-3 py-2 text-sm"
+                          value={sopForm.owner || OWNER_OPTIONS[0] || ""}
+                          onChange={(event) =>
+                            handleNewSopInputChange(category.id, "owner", event.target.value)
+                          }
+                        >
+                          {OWNER_OPTIONS.map((owner) => (
+                            <option key={owner} value={owner}>
+                              {owner}
+                            </option>
+                          ))}
+                        </select>
+                        <textarea
+                          value={sopForm.content}
+                          onChange={(event) =>
+                            handleNewSopInputChange(category.id, "content", event.target.value)
+                          }
+                          placeholder="Outline the purpose and 2-3 steps."
+                          className="min-h-[100px] w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                        <button
+                          onClick={() => handleAddSop(category.id)}
+                          disabled={newSopDisabled}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Plus className="h-4 w-4" /> Add SOP
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
