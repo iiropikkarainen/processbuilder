@@ -20,11 +20,17 @@ export const CodeNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) 
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Code"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Custom code execution"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Custom code execution"}
+          </div>
         </div>
       </div>
 
-      {data.codeLanguage && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Language: {data.codeLanguage}</div>}
+      {data.codeLanguage && (
+        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
+          Language: {data.codeLanguage}
+        </div>
+      )}
 
       {showTaskList ? (
         <NodeTaskList
@@ -41,8 +47,18 @@ export const CodeNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) 
         />
       ) : null}
 
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-gray-500" />
-      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-3 h-3 bg-gray-500" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-gray-500"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-gray-500"
+      />
     </div>
   )
 })

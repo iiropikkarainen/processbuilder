@@ -20,11 +20,17 @@ export const ProcessNode = memo(({ id, data, isConnectable }: NodeProps<NodeData
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Process"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Data processing node"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Data processing node"}
+          </div>
         </div>
       </div>
 
-      {data.processType && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Process: {data.processType}</div>}
+      {data.processType && (
+        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
+          Process: {data.processType}
+        </div>
+      )}
 
       {showTaskList ? (
         <NodeTaskList
@@ -41,7 +47,12 @@ export const ProcessNode = memo(({ id, data, isConnectable }: NodeProps<NodeData
         />
       ) : null}
 
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-purple-500" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-purple-500"
+      />
       <Handle
         type="source"
         position={Position.Bottom}

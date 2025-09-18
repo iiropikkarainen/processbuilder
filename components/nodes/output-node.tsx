@@ -20,7 +20,9 @@ export const OutputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Output"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Data output node"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Data output node"}
+          </div>
         </div>
       </div>
 
@@ -45,7 +47,12 @@ export const OutputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>
         />
       ) : null}
 
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-green-500" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-green-500"
+      />
     </div>
   )
 })

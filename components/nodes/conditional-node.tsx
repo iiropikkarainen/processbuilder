@@ -20,11 +20,17 @@ export const ConditionalNode = memo(({ id, data, isConnectable }: NodeProps<Node
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Conditional"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Conditional branching"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Conditional branching"}
+          </div>
         </div>
       </div>
 
-      {data.condition && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Condition: {data.condition}</div>}
+      {data.condition && (
+        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
+          Condition: {data.condition}
+        </div>
+      )}
 
       <div className="flex justify-between mt-2 text-xs">
         <div className="text-green-600">{data.trueLabel || "Yes"}</div>
@@ -46,7 +52,12 @@ export const ConditionalNode = memo(({ id, data, isConnectable }: NodeProps<Node
         />
       ) : null}
 
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-amber-500" />
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-amber-500"
+      />
       <Handle
         type="source"
         position={Position.Bottom}

@@ -20,11 +20,17 @@ export const InputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>)
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Input"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Data input node"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Data input node"}
+          </div>
         </div>
       </div>
 
-      {data.dataSource && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Source: {data.dataSource}</div>}
+      {data.dataSource && (
+        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
+          Source: {data.dataSource}
+        </div>
+      )}
 
       {showTaskList ? (
         <NodeTaskList
@@ -41,7 +47,12 @@ export const InputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>)
         />
       ) : null}
 
-      <Handle type="source" position={Position.Bottom} isConnectable={isConnectable} className="w-3 h-3 bg-blue-500" />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-blue-500"
+      />
     </div>
   )
 })
