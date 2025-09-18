@@ -559,25 +559,41 @@ export default function OpsCatalog() {
             )}
           </div>
 
-          <div
-            className={cn(
-              "flex-1 p-4",
-              viewMode === "process" ? "overflow-hidden" : "overflow-y-auto",
-            )}
-          >
+          <div className="flex-1 p-4">
             {!selectedSOP ? (
               <div className="text-sm text-gray-500">
                 Select an SOP from the left to preview.
               </div>
-            ) : viewMode === "editor" ? (
-              <Editor
-                content={selectedSOP.content}
-                onChange={(value) => updateSOP(selectedSOP.id, value)}
-              />
-            ) : viewMode === "process" ? (
-              <ProcessView tasks={tasks} setTasks={setTasks} />
             ) : (
-              <CalendarView tasks={tasks} />
+              <div className="h-full">
+                <div
+                  className={cn(
+                    "flex h-full flex-col overflow-y-auto",
+                    viewMode !== "editor" && "hidden",
+                  )}
+                >
+                  <Editor
+                    content={selectedSOP.content}
+                    onChange={(value) => updateSOP(selectedSOP.id, value)}
+                  />
+                </div>
+                <div
+                  className={cn(
+                    "flex h-full flex-col overflow-hidden",
+                    viewMode !== "process" && "hidden",
+                  )}
+                >
+                  <ProcessView tasks={tasks} setTasks={setTasks} />
+                </div>
+                <div
+                  className={cn(
+                    "flex h-full flex-col overflow-y-auto",
+                    viewMode !== "calendar" && "hidden",
+                  )}
+                >
+                  <CalendarView tasks={tasks} />
+                </div>
+              </div>
             )}
           </div>
         </div>
