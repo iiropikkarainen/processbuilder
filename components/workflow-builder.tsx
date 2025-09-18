@@ -31,7 +31,7 @@ import { ConditionalNode } from "./nodes/conditional-node"
 import { CodeNode } from "./nodes/code-node"
 import { generateNodeId, createNode } from "@/lib/workflow-utils"
 import { cn } from "@/lib/utils"
-import type { Task, WorkflowNode } from "@/lib/types"
+import type { Task, WorkflowNode, NodeData } from "@/lib/types"
 
 const nodeTypes: NodeTypes = {
   input: InputNode,
@@ -66,6 +66,77 @@ const areTaskListsEqual = (a?: Task[], b: Task[] = []): boolean => {
       task.nodeId === other.nodeId
     )
   })
+}
+
+const DEFAULT_HORIZONTAL_POSITION = 250
+const VERTICAL_NODE_SPACING = 180
+
+const generateSequentialFlow = (tasks: Task[]) => {
+  const generatedNodes: Node<NodeData>[] = []
+  const generatedEdges: Edge[] = []
+  const processNodeIds: string[] = []
+
+  const inputNode = createNode({
+    type: "input",
+    position: { x: DEFAULT_HORIZONTAL_POSITION, y: 0 },
+    id: generateNodeId("input"),
+  })
+
+  generatedNodes.push(inputNode)
+
+  let previousNodeId = inputNode.id
+
+  tasks.forEach((task, index) => {
+    const processNode = createNode({
+      type: "process",
+      position: {
+        x: DEFAULT_HORIZONTAL_POSITION,
+        y: VERTICAL_NODE_SPACING * (index + 1),
+      },
+      id: generateNodeId("process"),
+    })
+
+    const trimmedText = task.text.trim()
+
+    generatedNodes.push({
+      ...processNode,
+      data: {
+        ...processNode.data,
+        label: trimmedText || processNode.data.label,
+        description: `Step ${index + 1}`,
+      },
+    })
+
+    generatedEdges.push({
+      id: `edge-${previousNodeId}-${processNode.id}`,
+      source: previousNodeId,
+      target: processNode.id,
+      type: "custom",
+    })
+
+    previousNodeId = processNode.id
+    processNodeIds.push(processNode.id)
+  })
+
+  const outputNode = createNode({
+    type: "output",
+    position: {
+      x: DEFAULT_HORIZONTAL_POSITION,
+      y: VERTICAL_NODE_SPACING * (tasks.length + 1),
+    },
+    id: generateNodeId("output"),
+  })
+
+  generatedNodes.push(outputNode)
+
+  generatedEdges.push({
+    id: `edge-${previousNodeId}-${outputNode.id}`,
+    source: previousNodeId,
+    target: outputNode.id,
+    type: "custom",
+  })
+
+  return { nodes: generatedNodes, edges: generatedEdges, processNodeIds }
 }
 
 type WorkflowBuilderProps = {
@@ -255,6 +326,37 @@ export default function WorkflowBuilder({
   }
 
   const loadWorkflow = () => {
+    if (Array.isArray(tasks)) {
+      const { nodes: generatedNodes, edges: generatedEdges, processNodeIds } =
+        generateSequentialFlow(tasks)
+
+      setNodes(generatedNodes)
+      setEdges(generatedEdges)
+      setSelectedNode(null)
+
+      if (onAssignTask) {
+        tasks.forEach((task, index) => {
+          onAssignTask(task.id, processNodeIds[index] ?? null)
+        })
+      }
+
+      if (reactFlowInstance) {
+        requestAnimationFrame(() => {
+          reactFlowInstance?.fitView?.({ padding: 0.2 })
+        })
+      }
+
+      toast({
+        title: "Process flow generated",
+        description:
+          tasks.length > 0
+            ? "Nodes were created automatically from the SOP steps."
+            : "A default input and output were created for this process.",
+      })
+
+      return
+    }
+
     const savedWorkflow = localStorage.getItem("workflow")
 
     if (!savedWorkflow) {
