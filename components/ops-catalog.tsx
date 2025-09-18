@@ -18,7 +18,22 @@ import {
   Maximize2,
   Minimize2,
   Search,
+  Settings,
 } from "lucide-react"
+
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import WorkflowBuilder from "./workflow-builder"
 import { cn } from "@/lib/utils"
@@ -29,6 +44,18 @@ type Subcategory = {
   title: string
 }
 
+type ProcessSettings = {
+  owner: string
+  processType: "one-time" | "recurring"
+  recurrence: {
+    frequency: "custom" | "daily" | "weekly" | "monthly" | "quarterly" | "annually"
+    customDays: string[]
+    time: string
+    timezone: string
+  }
+  vaultAccess: string[]
+}
+
 type Sop = {
   id: string
   title: string
@@ -36,6 +63,7 @@ type Sop = {
   owner: string
   lastUpdated: string
   content: string
+  processSettings: ProcessSettings
 }
 
 type Category = {
@@ -67,8 +95,8 @@ const SAMPLE_DATA: Category[] = [
         lastUpdated: "2025-09-10",
         content: `# SOP: Payroll & Benefits Processing (Canada)
 
-**Category:** Finance & Accounting  
-**System of Record:** Deel  
+**Category:** Finance & Accounting
+**System of Record:** Deel
 
 ## Purpose
 Ensure accurate, timely payroll.
@@ -77,6 +105,17 @@ Ensure accurate, timely payroll.
 1. Maintain payroll calendar.
 2. Prepare employee changes.
 3. Review and approve.`,
+        processSettings: {
+          owner: "Finance Manager",
+          processType: "recurring",
+          recurrence: {
+            frequency: "custom",
+            customDays: ["monday", "thursday"],
+            time: "09:00",
+            timezone: "America/New_York",
+          },
+          vaultAccess: ["Deel", "Notion"],
+        },
       },
     ],
   },
@@ -89,6 +128,33 @@ const slashMenuOptions = [
     items: ["PDF", "Notion", "Google Doc", "Word", "Scribe", "Loom"],
   },
 ]
+
+const OWNER_OPTIONS = [
+  "Finance Manager",
+  "Operations Manager",
+  "HR Lead",
+  "IT Administrator",
+]
+
+const TIMEZONE_OPTIONS = [
+  "UTC",
+  "America/New_York",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Asia/Singapore",
+]
+
+const DAY_OPTIONS = [
+  { label: "Mon", value: "monday" },
+  { label: "Tue", value: "tuesday" },
+  { label: "Wed", value: "wednesday" },
+  { label: "Thu", value: "thursday" },
+  { label: "Fri", value: "friday" },
+  { label: "Sat", value: "saturday" },
+  { label: "Sun", value: "sunday" },
+]
+
+const VAULT_OPTIONS = ["Deel", "Slack", "Jira", "Salesforce", "Notion"]
 
 interface SlashMenuProps {
   position: SlashMenuPosition | null
@@ -356,6 +422,315 @@ const CalendarView = ({ tasks }: CalendarViewProps) => {
   )
 }
 
+interface ProcessSettingsViewProps {
+  settings: ProcessSettings | null
+  onChange: (settings: ProcessSettings) => void
+}
+
+const ProcessSettingsView = ({ settings, onChange }: ProcessSettingsViewProps) => {
+  if (!settings) {
+    return (
+      <div className="text-sm text-gray-500">
+        Select an SOP from the catalog to configure its process settings.
+      </div>
+    )
+  }
+
+  const recurrenceOptions: { value: ProcessSettings["recurrence"]["frequency"]; label: string }[] = [
+    { value: "custom", label: "Custom (selected days)" },
+    { value: "daily", label: "Daily" },
+    { value: "weekly", label: "Weekly" },
+    { value: "monthly", label: "Monthly" },
+    { value: "quarterly", label: "Quarterly" },
+    { value: "annually", label: "Annually" },
+  ]
+
+  const handleOwnerChange = (value: string) => {
+    onChange({
+      ...settings,
+      owner: value,
+    })
+  }
+
+  const handleProcessTypeChange = (value: string) => {
+    onChange({
+      ...settings,
+      processType: value as ProcessSettings["processType"],
+    })
+  }
+
+  const handleFrequencyChange = (value: string) => {
+    onChange({
+      ...settings,
+      recurrence: {
+        ...settings.recurrence,
+        frequency: value as ProcessSettings["recurrence"]["frequency"],
+      },
+    })
+  }
+
+  const handleTimeChange = (value: string) => {
+    onChange({
+      ...settings,
+      recurrence: { ...settings.recurrence, time: value },
+    })
+  }
+
+  const handleTimezoneChange = (value: string) => {
+    onChange({
+      ...settings,
+      recurrence: { ...settings.recurrence, timezone: value },
+    })
+  }
+
+  const toggleCustomDay = (day: string) => {
+    const existingDays = settings.recurrence.customDays
+    const nextDays = existingDays.includes(day)
+      ? existingDays.filter((value) => value !== day)
+      : [...existingDays, day]
+
+    const orderedDays = DAY_OPTIONS.map((option) => option.value).filter((value) =>
+      nextDays.includes(value),
+    )
+
+    onChange({
+      ...settings,
+      recurrence: { ...settings.recurrence, customDays: orderedDays },
+    })
+  }
+
+  const toggleVaultAccess = (tool: string) => {
+    const { vaultAccess } = settings
+    const nextTools = vaultAccess.includes(tool)
+      ? vaultAccess.filter((value) => value !== tool)
+      : [...vaultAccess, tool]
+
+    onChange({
+      ...settings,
+      vaultAccess: nextTools,
+    })
+  }
+
+  const recurrenceSummary = (() => {
+    if (settings.processType === "one-time") {
+      return "This process will run a single time. Use the process view to coordinate execution."
+    }
+
+    const time = settings.recurrence.time
+    const timezone = settings.recurrence.timezone
+
+    switch (settings.recurrence.frequency) {
+      case "daily":
+        return `Runs every day at ${time} (${timezone}).`
+      case "weekly":
+        return `Runs every week at ${time} (${timezone}).`
+      case "monthly":
+        return `Runs every month at ${time} (${timezone}).`
+      case "quarterly":
+        return `Runs every quarter at ${time} (${timezone}).`
+      case "annually":
+        return `Runs every year at ${time} (${timezone}).`
+      case "custom":
+      default: {
+        const selectedDays = DAY_OPTIONS.filter((option) =>
+          settings.recurrence.customDays.includes(option.value),
+        ).map((option) => option.label)
+
+        if (!selectedDays.length) {
+          return `Recurring schedule saved. Select at least one day to define when the process runs at ${time} (${timezone}).`
+        }
+
+        return `Runs on ${selectedDays.join(", ")} at ${time} (${timezone}).`
+      }
+    }
+  })()
+
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Process owner</h3>
+          <p className="text-xs text-gray-500">
+            Select who is accountable for the execution and maintenance of this process.
+          </p>
+        </div>
+        <div className="w-full max-w-xs space-y-2">
+          <Label htmlFor="process-owner">Owner</Label>
+          <Select value={settings.owner} onValueChange={handleOwnerChange}>
+            <SelectTrigger id="process-owner">
+              <SelectValue placeholder="Select owner" />
+            </SelectTrigger>
+            <SelectContent>
+              {OWNER_OPTIONS.map((owner) => (
+                <SelectItem key={owner} value={owner}>
+                  {owner}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Scheduling</h3>
+          <p className="text-xs text-gray-500">
+            Configure when this process should run as a one-time handoff or a recurring workflow.
+          </p>
+        </div>
+
+        <Tabs value={settings.processType} onValueChange={handleProcessTypeChange}>
+          <TabsList className="grid w-full max-w-lg grid-cols-2">
+            <TabsTrigger value="one-time">One-time process</TabsTrigger>
+            <TabsTrigger value="recurring">Recurring process</TabsTrigger>
+          </TabsList>
+          <TabsContent value="one-time" className="mt-4">
+            <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
+              This process will execute once. Use assignments and due dates in the process view to
+              manage work.
+            </div>
+          </TabsContent>
+          <TabsContent value="recurring" className="mt-4">
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <Label>Frequency</Label>
+                <RadioGroup
+                  className="grid gap-2 md:grid-cols-2"
+                  value={settings.recurrence.frequency}
+                  onValueChange={handleFrequencyChange}
+                >
+                  {recurrenceOptions.map((option) => {
+                    const id = `recurrence-${option.value}`
+                    return (
+                      <div
+                        key={option.value}
+                        className="flex items-start gap-3 rounded-lg border p-3"
+                      >
+                        <RadioGroupItem id={id} value={option.value} className="mt-1" />
+                        <div>
+                          <Label htmlFor={id} className="text-sm font-medium">
+                            {option.label}
+                          </Label>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </RadioGroup>
+              </div>
+
+              {settings.recurrence.frequency === "custom" && (
+                <div className="space-y-3 rounded-xl border bg-white p-4 shadow-sm">
+                  <div className="text-sm font-medium">Select days</div>
+                  <div className="flex flex-wrap gap-2">
+                    {DAY_OPTIONS.map((day) => {
+                      const id = `custom-day-${day.value}`
+                      const checked = settings.recurrence.customDays.includes(day.value)
+                      return (
+                        <div
+                          key={day.value}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2",
+                            checked && "border-blue-500 bg-blue-50",
+                          )}
+                        >
+                          <Checkbox
+                            id={id}
+                            checked={checked}
+                            onCheckedChange={() => toggleCustomDay(day.value)}
+                          />
+                          <Label htmlFor={id} className="text-sm">
+                            {day.label}
+                          </Label>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="recurrence-time">Start time</Label>
+                  <Input
+                    id="recurrence-time"
+                    type="time"
+                    value={settings.recurrence.time}
+                    onChange={(event) => handleTimeChange(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recurrence-timezone">Timezone</Label>
+                  <Select
+                    value={settings.recurrence.timezone}
+                    onValueChange={handleTimezoneChange}
+                  >
+                    <SelectTrigger id="recurrence-timezone">
+                      <SelectValue placeholder="Select timezone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIMEZONE_OPTIONS.map((zone) => (
+                        <SelectItem key={zone} value={zone}>
+                          {zone}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </section>
+
+      <Separator />
+
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Vault access</h3>
+          <p className="text-xs text-gray-500">
+            Grant processors access to the tools they need when this process runs.
+          </p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          {VAULT_OPTIONS.map((tool) => {
+            const id = `vault-${tool}`
+            const checked = settings.vaultAccess.includes(tool)
+            return (
+              <div
+                key={tool}
+                className={cn(
+                  "flex items-start gap-3 rounded-lg border p-3",
+                  checked && "border-emerald-500 bg-emerald-50",
+                )}
+              >
+                <Checkbox
+                  id={id}
+                  checked={checked}
+                  onCheckedChange={() => toggleVaultAccess(tool)}
+                />
+                <div>
+                  <Label htmlFor={id} className="text-sm font-medium">
+                    {tool}
+                  </Label>
+                  <p className="text-xs text-gray-500">
+                    {checked ? "Access will be provisioned automatically." : "Click to provision access."}
+                  </p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="rounded-xl border bg-white p-4 text-sm text-gray-600 shadow-sm">
+        {recurrenceSummary}
+      </div>
+    </div>
+  )
+}
+
 const filterData = (data: Category[], query: string) => {
   if (!query) return data
 
@@ -387,8 +762,11 @@ export default function OpsCatalog() {
   const [selectedSOP, setSelectedSOP] = useState<Sop | null>(null)
   const [data, setData] = useState<Category[]>(SAMPLE_DATA)
   const [fullscreen, setFullscreen] = useState(false)
-  const [viewMode, setViewMode] = useState<"editor" | "process" | "calendar">("editor")
+  const [viewMode, setViewMode] = useState<"editor" | "process" | "calendar" | "settings">(
+    "editor",
+  )
   const [tasks, setTasks] = useState<Task[]>([])
+  const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
 
@@ -405,9 +783,31 @@ export default function OpsCatalog() {
     }
   }
 
+  const handleProcessSettingsChange = (settings: ProcessSettings) => {
+    if (!selectedSOP) return
+
+    setProcessSettings(settings)
+
+    setData((prev) =>
+      prev.map((category) => ({
+        ...category,
+        sops: category.sops.map((sop) =>
+          sop.id === selectedSOP.id
+            ? { ...sop, owner: settings.owner, processSettings: settings }
+            : sop,
+        ),
+      })),
+    )
+
+    setSelectedSOP((prev) =>
+      prev ? { ...prev, owner: settings.owner, processSettings: settings } : prev,
+    )
+  }
+
   useEffect(() => {
     if (!selectedSOP) {
       setTasks([])
+      setProcessSettings(null)
       return
     }
 
@@ -425,6 +825,7 @@ export default function OpsCatalog() {
       }))
 
     setTasks(steps)
+    setProcessSettings(selectedSOP.processSettings)
   }, [selectedSOP])
 
   const filteredData = filterData(data, query)
@@ -555,6 +956,15 @@ export default function OpsCatalog() {
                 >
                   <CalendarIcon className="h-4 w-4" /> Calendar View
                 </button>
+                <button
+                  onClick={() => setViewMode("settings")}
+                  className={cn(
+                    "flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                    viewMode === "settings" && "bg-gray-100",
+                  )}
+                >
+                  <Settings className="h-4 w-4" /> Process Settings
+                </button>
               </div>
             )}
           </div>
@@ -592,6 +1002,17 @@ export default function OpsCatalog() {
                   )}
                 >
                   <CalendarView tasks={tasks} />
+                </div>
+                <div
+                  className={cn(
+                    "flex h-full flex-col overflow-y-auto",
+                    viewMode !== "settings" && "hidden",
+                  )}
+                >
+                  <ProcessSettingsView
+                    settings={processSettings}
+                    onChange={handleProcessSettingsChange}
+                  />
                 </div>
               </div>
             )}
