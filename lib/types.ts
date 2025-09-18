@@ -1,5 +1,15 @@
 import type { Node } from "reactflow"
 
+export interface Task {
+  id: number
+  text: string
+  due: string
+  completed: boolean
+  completedBy: string
+  completedAt: string | null
+  nodeId: string | null
+}
+
 export interface NodeData {
   label: string
   description?: string
@@ -25,6 +35,14 @@ export interface NodeData {
   // Code node properties
   codeLanguage?: "javascript" | "typescript"
   code?: string
+
+  // Task management
+  tasks?: Task[]
+  availableTasks?: Task[]
+  assignTask?: (taskId: number, nodeId: string | null) => void
+  createTask?: (nodeId: string, text: string) => void
+  updateTaskDueDate?: (taskId: number, due: string) => void
+  markTaskDone?: (taskId: number) => void
 }
 
 export type WorkflowNode = Node<NodeData>

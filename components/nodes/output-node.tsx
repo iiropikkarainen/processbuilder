@@ -4,8 +4,14 @@ import { memo } from "react"
 import { Handle, Position, type NodeProps } from "reactflow"
 import { FileOutput } from "lucide-react"
 import type { NodeData } from "@/lib/types"
+import { NodeTaskList } from "./node-task-list"
 
-export const OutputNode = memo(({ data, isConnectable }: NodeProps<NodeData>) => {
+export const OutputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) => {
+  const showTaskList =
+    (data.tasks?.length ?? 0) > 0 ||
+    (data.availableTasks?.length ?? 0) > 0 ||
+    Boolean(data.createTask)
+
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-green-500 min-w-[150px]">
       <div className="flex items-center">
@@ -23,6 +29,21 @@ export const OutputNode = memo(({ data, isConnectable }: NodeProps<NodeData>) =>
           Output: {data.outputType} ({data.outputFormat || "json"})
         </div>
       )}
+
+      {showTaskList ? (
+        <NodeTaskList
+          nodeId={id}
+          tasks={data.tasks ?? []}
+          availableTasks={data.availableTasks}
+          onAddTask={data.createTask}
+          onAttachTask={data.assignTask}
+          onDueDateChange={data.updateTaskDueDate}
+          onMarkDone={data.markTaskDone}
+          title="Tasks"
+          variant="node"
+          className="mt-3"
+        />
+      ) : null}
 
       <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-green-500" />
     </div>

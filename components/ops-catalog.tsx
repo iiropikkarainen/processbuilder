@@ -1,6 +1,14 @@
 "use client"
 
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react"
 import {
   Calendar as CalendarIcon,
   ChevronDown,
@@ -14,6 +22,7 @@ import {
 
 import WorkflowBuilder from "./workflow-builder"
 import { cn } from "@/lib/utils"
+import type { Task } from "@/lib/types"
 
 type Subcategory = {
   id: string
@@ -34,15 +43,6 @@ type Category = {
   title: string
   subcategories: Subcategory[]
   sops: Sop[]
-}
-
-type Task = {
-  id: number
-  text: string
-  due: string
-  completed: boolean
-  completedBy: string
-  completedAt: string | null
 }
 
 type SlashMenuPosition = {
@@ -198,68 +198,71 @@ interface ProcessViewProps {
 }
 
 const ProcessView = ({ tasks, setTasks }: ProcessViewProps) => {
-  const markDone = (id: number) => {
-    setTasks((prev) =>
-      prev.map((task) =>
-        task.id === id
-          ? {
-              ...task,
-              completed: true,
-              completedBy: "Current User",
-              completedAt: new Date().toLocaleString(),
-            }
-          : task,
-      ),
-    )
-  }
+  const unassignedTasks = useMemo(() => tasks.filter((task) => !task.nodeId), [tasks])
 
-  const setDueDate = (id: number, date: string) => {
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, due: date } : task)))
-  }
+  const assignTaskToNode = useCallback(
+    (taskId: number, nodeId: string | null) => {
+      setTasks((prev) =>
+        prev.map((task) => (task.id === taskId ? { ...task, nodeId } : task)),
+      )
+    },
+    [setTasks],
+  )
+
+  const handleDueDateChange = useCallback(
+    (taskId: number, date: string) => {
+      setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, due: date } : task)))
+    },
+    [setTasks],
+  )
+
+  const handleMarkDone = useCallback(
+    (taskId: number) => {
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId
+            ? {
+                ...task,
+                completed: true,
+                completedBy: "Current User",
+                completedAt: new Date().toLocaleString(),
+              }
+            : task,
+        ),
+      )
+    },
+    [setTasks],
+  )
+
+  const handleCreateTask = useCallback(
+    (nodeId: string, text: string) => {
+      setTasks((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          text,
+          due: "",
+          completed: false,
+          completedBy: "",
+          completedAt: null,
+          nodeId,
+        },
+      ])
+    },
+    [setTasks],
+  )
 
   return (
-    <div className="space-y-6">
-      <div className="min-h-[600px] overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <WorkflowBuilder className="bg-white" />
-      </div>
-      <div className="space-y-4">
-        <h3 className="text-sm font-semibold text-gray-700">Task Checklist</h3>
-        {tasks.length === 0 ? (
-          <div className="text-sm text-gray-500">No numbered steps detected in this SOP.</div>
-        ) : (
-          tasks.map((task) => (
-            <div
-              key={task.id}
-              className="flex flex-col gap-2 rounded-lg border bg-gray-50 p-3"
-            >
-              <div className="font-medium">{task.text}</div>
-              <input
-                type="datetime-local"
-                value={task.due}
-                onChange={(event) => setDueDate(task.id, event.target.value)}
-                className="rounded border px-2 py-1 text-sm"
-              />
-              <button
-                onClick={() => markDone(task.id)}
-                disabled={task.completed}
-                className={cn(
-                  "rounded px-2 py-1 text-sm",
-                  task.completed
-                    ? "bg-green-100 text-green-600"
-                    : "bg-blue-500 text-white hover:bg-blue-600",
-                )}
-              >
-                {task.completed ? "Done" : "Mark as Done"}
-              </button>
-              {task.completed && (
-                <div className="text-xs text-gray-600">
-                  Completed by {task.completedBy} at {task.completedAt}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+    <div className="min-h-[600px] overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <WorkflowBuilder
+        className="bg-white"
+        tasks={tasks}
+        availableTasks={unassignedTasks}
+        onAssignTask={assignTaskToNode}
+        onUpdateTaskDueDate={handleDueDateChange}
+        onMarkTaskDone={handleMarkDone}
+        onCreateTask={handleCreateTask}
+      />
     </div>
   )
 }
@@ -418,6 +421,7 @@ export default function OpsCatalog() {
         completed: false,
         completedBy: "",
         completedAt: null,
+        nodeId: null,
       }))
 
     setTasks(steps)
