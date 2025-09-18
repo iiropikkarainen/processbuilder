@@ -4,14 +4,7 @@ import { memo } from "react"
 import { Handle, Position, type NodeProps } from "reactflow"
 import { GitBranch } from "lucide-react"
 import type { NodeData } from "@/lib/types"
-import { NodeTaskList } from "./node-task-list"
-
 export const ConditionalNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) => {
-  const showTaskList =
-    (data.tasks?.length ?? 0) > 0 ||
-    (data.availableTasks?.length ?? 0) > 0 ||
-    Boolean(data.createTask)
-
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-amber-500 min-w-[150px]">
       <div className="flex items-center">
@@ -36,21 +29,6 @@ export const ConditionalNode = memo(({ id, data, isConnectable }: NodeProps<Node
         <div className="text-green-600">{data.trueLabel || "Yes"}</div>
         <div className="text-red-600">{data.falseLabel || "No"}</div>
       </div>
-
-      {showTaskList ? (
-        <NodeTaskList
-          nodeId={id}
-          tasks={data.tasks ?? []}
-          availableTasks={data.availableTasks}
-          onAddTask={data.createTask}
-          onAttachTask={data.assignTask}
-          onDueDateChange={data.updateTaskDueDate}
-          onMarkDone={data.markTaskDone}
-          title="Tasks"
-          variant="node"
-          className="mt-3"
-        />
-      ) : null}
 
       <Handle
         type="target"
