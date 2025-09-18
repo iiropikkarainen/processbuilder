@@ -1,13 +1,18 @@
 "use client"
 
 import { useState, type ChangeEvent } from "react"
-
 import type { Task } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+type NodeTaskListVariant = "panel" | "node"
 
 interface NodeTaskListProps {
   nodeId: string
   tasks: Task[]
   availableTasks?: Task[]
+  className?: string
+  title?: string
+  variant?: NodeTaskListVariant
   onAddTask?: (nodeId: string, text: string) => void
   onAttachTask?: (taskId: number, nodeId: string) => void
   onDueDateChange?: (taskId: number, due: string) => void
@@ -20,6 +25,9 @@ export function NodeTaskList({
   nodeId,
   tasks,
   availableTasks,
+  className,
+  title = "Task Checklist",
+  variant = "panel",
   onAddTask,
   onAttachTask,
   onDueDateChange,
@@ -50,14 +58,37 @@ export function NodeTaskList({
   }
 
   return (
-    <div className="mt-3 space-y-2 rounded-md border border-dashed border-gray-200 bg-gray-50 p-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Tasks</span>
+    <div
+      className={cn(
+        "space-y-2 rounded-md p-2",
+        variant === "panel"
+          ? "border border-dashed border-gray-200 bg-gray-50"
+          : "border border-gray-200 bg-white/80 shadow-sm",
+        className,
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2",
+          variant === "node" && "flex-col items-start",
+        )}
+      >
+        <span
+          className={cn(
+            "font-semibold uppercase tracking-wide",
+            variant === "panel" ? "text-xs text-gray-500" : "text-[10px] text-gray-600",
+          )}
+        >
+          {title}
+        </span>
         {onAttachTask && availableTasks && availableTasks.length > 0 ? (
           <select
             value={selectedTaskId}
             onChange={handleAssignExisting}
-            className="rounded border px-2 py-1 text-[10px] text-gray-700"
+            className={cn(
+              "rounded border px-2 py-1 text-[10px] text-gray-700",
+              variant === "node" && "w-full",
+            )}
           >
             <option value={placeholderOption}>Add from checklist</option>
             {availableTasks.map((task) => (
@@ -72,7 +103,13 @@ export function NodeTaskList({
       {tasks.length > 0 ? (
         <div className="space-y-2">
           {tasks.map((task) => (
-            <div key={task.id} className="space-y-1 rounded border bg-white p-2">
+            <div
+              key={task.id}
+              className={cn(
+                "space-y-1 rounded border bg-white p-2",
+                variant === "node" ? "border-gray-200" : "",
+              )}
+            >
               <div className="text-xs font-medium text-gray-800">{task.text}</div>
               <input
                 type="datetime-local"
@@ -85,11 +122,13 @@ export function NodeTaskList({
                 type="button"
                 onClick={() => onMarkDone?.(task.id)}
                 disabled={task.completed || !onMarkDone}
-                className={`w-full rounded px-2 py-1 text-[10px] font-medium ${
+                className={cn(
+                  "w-full rounded px-2 py-1 text-[10px] font-medium",
                   task.completed
                     ? "bg-green-100 text-green-700"
-                    : "bg-blue-500 text-white hover:bg-blue-600"
-                } ${!onMarkDone ? "opacity-50" : ""}`}
+                    : "bg-blue-500 text-white hover:bg-blue-600",
+                  !onMarkDone && "opacity-50",
+                )}
               >
                 {task.completed ? "Done" : "Mark as done"}
               </button>
@@ -104,22 +143,33 @@ export function NodeTaskList({
         </div>
       ) : (
         <div className="rounded border border-dashed border-gray-300 bg-white p-2 text-[10px] text-gray-500">
-          No tasks yet. Use the field below to create one.
+          {onAddTask ? "No tasks yet. Use the field below to create one." : "No tasks assigned."}
         </div>
       )}
 
       {onAddTask ? (
-        <div className="flex items-center gap-2">
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            variant === "node" && "flex-col items-stretch",
+          )}
+        >
           <input
             value={newTaskText}
             onChange={(event) => setNewTaskText(event.target.value)}
             placeholder="Add action item"
-            className="flex-1 rounded border px-2 py-1 text-[10px]"
+            className={cn(
+              "flex-1 rounded border px-2 py-1 text-[10px]",
+              variant === "node" && "w-full",
+            )}
           />
           <button
             type="button"
             onClick={handleCreateTask}
-            className="rounded bg-blue-500 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-600"
+            className={cn(
+              "rounded bg-blue-500 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-600",
+              variant === "node" && "w-full",
+            )}
           >
             Add
           </button>

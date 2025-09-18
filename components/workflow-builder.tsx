@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useCallback, useRef, useEffect } from "react"
 import ReactFlow, {
   ReactFlowProvider,
@@ -111,7 +110,6 @@ export default function WorkflowBuilder({
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect()
       const type = event.dataTransfer.getData("application/reactflow")
 
-      // Check if the dropped element is valid
       if (typeof type === "undefined" || !type) {
         return
       }
@@ -219,6 +217,23 @@ export default function WorkflowBuilder({
     setNodes,
   ])
 
+  useEffect(() => {
+    if (!selectedNode) {
+      return
+    }
+
+    const updated = nodes.find((node) => node.id === selectedNode.id)
+
+    if (!updated) {
+      setSelectedNode(null)
+      return
+    }
+
+    if (updated !== selectedNode) {
+      setSelectedNode(updated)
+    }
+  }, [nodes, selectedNode])
+
   const saveWorkflow = () => {
     if (nodes.length === 0) {
       toast({
@@ -229,11 +244,7 @@ export default function WorkflowBuilder({
       return
     }
 
-    const workflow = {
-      nodes,
-      edges,
-    }
-
+    const workflow = { nodes, edges }
     const workflowString = JSON.stringify(workflow)
     localStorage.setItem("workflow", workflowString)
 
@@ -287,8 +298,6 @@ export default function WorkflowBuilder({
       description: "Your workflow is being executed (simulation only in this MVP)",
     })
 
-    // In a real implementation, we would traverse the graph and execute each node
-    // For the MVP, we'll just simulate execution with a success message
     setTimeout(() => {
       toast({
         title: "Workflow executed",

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import type { WorkflowNode } from "@/lib/types"
 import CodeEditor from "./code-editor"
+import { NodeTaskList } from "./nodes/node-task-list"
 
 interface NodeConfigPanelProps {
   node: WorkflowNode
@@ -247,6 +248,24 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
         <div className="border-t border-gray-200 my-4"></div>
 
         {renderInputFields()}
+
+        <div className="border-t border-gray-200 my-4"></div>
+
+        <p className="text-xs text-gray-500">
+          Manage this node&apos;s checklist, set due dates, and mark work complete without leaving the
+          configuration view.
+        </p>
+
+        <NodeTaskList
+          nodeId={node.id}
+          tasks={node.data.tasks ?? []}
+          availableTasks={node.data.availableTasks}
+          onAddTask={node.data.createTask}
+          onAttachTask={node.data.assignTask}
+          onDueDateChange={node.data.updateTaskDueDate}
+          onMarkDone={node.data.markTaskDone}
+          className="mt-2"
+        />
       </div>
     </div>
   )

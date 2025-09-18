@@ -7,6 +7,11 @@ import type { NodeData } from "@/lib/types"
 import { NodeTaskList } from "./node-task-list"
 
 export const ProcessNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) => {
+  const showTaskList =
+    (data.tasks?.length ?? 0) > 0 ||
+    (data.availableTasks?.length ?? 0) > 0 ||
+    Boolean(data.createTask)
+
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-purple-500 min-w-[150px]">
       <div className="flex items-center">
@@ -15,23 +20,39 @@ export const ProcessNode = memo(({ id, data, isConnectable }: NodeProps<NodeData
         </div>
         <div className="ml-2">
           <div className="text-sm font-bold">{data.label || "Process"}</div>
-          <div className="text-xs text-gray-500">{data.description || "Data processing node"}</div>
+          <div className="text-xs text-gray-500">
+            {data.description || "Data processing node"}
+          </div>
         </div>
       </div>
 
-      {data.processType && <div className="mt-2 text-xs bg-gray-100 p-1 rounded">Process: {data.processType}</div>}
+      {data.processType && (
+        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
+          Process: {data.processType}
+        </div>
+      )}
 
-      <NodeTaskList
-        nodeId={id}
-        tasks={data.tasks ?? []}
-        availableTasks={data.availableTasks}
-        onAddTask={data.createTask}
-        onAttachTask={data.assignTask}
-        onDueDateChange={data.updateTaskDueDate}
-        onMarkDone={data.markTaskDone}
+      {showTaskList ? (
+        <NodeTaskList
+          nodeId={id}
+          tasks={data.tasks ?? []}
+          availableTasks={data.availableTasks}
+          onAddTask={data.createTask}
+          onAttachTask={data.assignTask}
+          onDueDateChange={data.updateTaskDueDate}
+          onMarkDone={data.markTaskDone}
+          title="Tasks"
+          variant="node"
+          className="mt-3"
+        />
+      ) : null}
+
+      <Handle
+        type="target"
+        position={Position.Top}
+        isConnectable={isConnectable}
+        className="w-3 h-3 bg-purple-500"
       />
-
-      <Handle type="target" position={Position.Top} isConnectable={isConnectable} className="w-3 h-3 bg-purple-500" />
       <Handle
         type="source"
         position={Position.Bottom}
