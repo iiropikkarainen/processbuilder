@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
-import { Analytics } from '@vercel/analytics/next'
+import DisableNextDevTools from '@/components/disable-next-devtools'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -24,11 +24,19 @@ html {
   --font-sans: ${GeistSans.variable};
   --font-mono: ${GeistMono.variable};
 }
+[data-nextjs-dev-tools-button],
+[data-next-badge],
+[data-next-badge-root],
+[data-next-mark],
+[data-nextjs-toast],
+[data-nextjs-toast-wrapper] {
+  display: none !important;
+}
         `}</style>
       </head>
       <body>
+        <DisableNextDevTools />
         {children}
-        <Analytics />
       </body>
     </html>
   )
