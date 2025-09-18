@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
@@ -8,6 +10,16 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+  },
+  webpack(config) {
+    config.resolve = config.resolve ?? {}
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@headlessui/react': path.join(process.cwd(), 'lib', 'headlessui.tsx'),
+      'motion/react': path.join(process.cwd(), 'lib', 'motion.tsx'),
+    }
+
+    return config
   },
 }
 
