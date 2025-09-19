@@ -24,8 +24,25 @@ export interface NodeData {
   outputFormat?: "json" | "csv" | "xml" | "text"
 
   // Process node properties
-  processType?: "transform" | "filter" | "aggregate" | "sort"
-  processConfig?: string
+  assignmentType?: "user" | "role"
+  assignedProcessor?: string
+  assignedRole?: string
+  allowReassignment?: boolean
+  approver?: string
+  predecessorNodeIds?: string[]
+  conditionalLogic?: string
+  expectedDuration?: string
+  deadlineType?: "relative" | "absolute"
+  deadlineRelativeValue?: string
+  deadlineRelativeUnit?: "hours" | "days"
+  deadlineAbsolute?: string
+  reminderEnabled?: boolean
+  reminderLeadTime?: string
+  reminderLeadTimeUnit?: "hours" | "days"
+  outputRequirementType?: "file" | "link" | "text"
+  outputStructuredDataTemplate?: string
+  validationRequireOutput?: boolean
+  validationNotes?: string
 
   // Conditional node properties
   condition?: string

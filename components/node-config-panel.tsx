@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { useReactFlow } from "reactflow"
 import type { WorkflowNode } from "@/lib/types"
 import CodeEditor from "./code-editor"
 import { NodeTaskList } from "./nodes/node-task-list"
@@ -20,6 +23,7 @@ interface NodeConfigPanelProps {
 
 export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeConfigPanelProps) {
   const [localData, setLocalData] = useState({ ...node.data })
+  const reactFlowInstance = useReactFlow()
 
   const handleChange = (key: string, value: any) => {
     setLocalData((prev) => ({
@@ -106,39 +110,329 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
           </>
         )
 
-      case "process":
+      case "process": {
+        const otherNodes = reactFlowInstance
+          .getNodes()
+          .filter((workflowNode) => workflowNode.id !== node.id)
+        const assignmentType = (localData.assignmentType ?? "user") as "user" | "role"
+        const deadlineType = (localData.deadlineType ?? "relative") as "relative" | "absolute"
+        const reminderEnabled = Boolean(localData.reminderEnabled)
+        const selectedDependencies = localData.predecessorNodeIds ?? []
+        const deadlineRelativeUnit = (localData.deadlineRelativeUnit ?? "days") as "hours" | "days"
+        const reminderUnit = (localData.reminderLeadTimeUnit ?? "hours") as "hours" | "days"
+
+        const toggleDependency = (dependencyId: string, shouldAdd: boolean) => {
+          const current = localData.predecessorNodeIds ?? []
+          const updated = shouldAdd
+            ? Array.from(new Set([...current, dependencyId]))
+            : current.filter((id) => id !== dependencyId)
+          handleChange("predecessorNodeIds", updated)
+        }
+
         return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="processType">Process Type</Label>
-              <Select
-                value={localData.processType || "transform"}
-                onValueChange={(value) => handleChange("processType", value)}
-              >
-                <SelectTrigger id="processType">
-                  <SelectValue placeholder="Select process type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="transform">Transform</SelectItem>
-                  <SelectItem value="filter">Filter</SelectItem>
-                  <SelectItem value="aggregate">Aggregate</SelectItem>
-                  <SelectItem value="sort">Sort</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Assignment &amp; Ownership
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Decide who runs this step and who needs to sign off before the work is complete.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Processor Assignment</Label>
+                <RadioGroup
+                  value={assignmentType}
+                  onValueChange={(value) => handleChange("assignmentType", value)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="user" id="assignment-user" />
+                    <Label htmlFor="assignment-user" className="font-normal">
+                      Specific processor
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="role" id="assignment-role" />
+                    <Label htmlFor="assignment-role" className="font-normal">
+                      Role or team
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {assignmentType === "role" ? (
+                <div className="space-y-2">
+                  <Label htmlFor="assignedRole">Assigned role</Label>
+                  <Input
+                    id="assignedRole"
+                    value={localData.assignedRole || ""}
+                    onChange={(event) => handleChange("assignedRole", event.target.value)}
+                    placeholder="e.g., Finance Team"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="assignedProcessor">Assigned processor</Label>
+                  <Input
+                    id="assignedProcessor"
+                    value={localData.assignedProcessor || ""}
+                    onChange={(event) => handleChange("assignedProcessor", event.target.value)}
+                    placeholder="Name or email"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="allowReassignment"
+                  checked={localData.allowReassignment ?? false}
+                  onCheckedChange={(checked) => handleChange("allowReassignment", checked)}
+                />
+                <Label htmlFor="allowReassignment">Allow reassignment if workload shifts</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="approver">Approver (optional)</Label>
+                <Input
+                  id="approver"
+                  value={localData.approver || ""}
+                  onChange={(event) => handleChange("approver", event.target.value)}
+                  placeholder="Who signs off on completion?"
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="processConfig">Process Configuration (JSON)</Label>
-              <Textarea
-                id="processConfig"
-                value={localData.processConfig || ""}
-                onChange={(e) => handleChange("processConfig", e.target.value)}
-                className="h-32"
-                placeholder='{"operation": "value"}'
-              />
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Dependencies &amp; Logic
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Control when this node unlocks and whether it should run based on prior outcomes.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Predecessor nodes</Label>
+                {otherNodes.length > 0 ? (
+                  <div className="space-y-2 rounded-md border border-dashed border-gray-200 p-3">
+                    {otherNodes.map((workflowNode) => {
+                      const checkboxId = `dependency-${workflowNode.id}`
+                      const displayLabel = workflowNode.data?.label || workflowNode.id
+                      const isChecked = selectedDependencies.includes(workflowNode.id)
+                      return (
+                        <div key={workflowNode.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={checkboxId}
+                            checked={isChecked}
+                            onCheckedChange={(checked) =>
+                              toggleDependency(workflowNode.id, checked === true)
+                            }
+                          />
+                          <Label htmlFor={checkboxId} className="font-normal">
+                            {displayLabel}
+                          </Label>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No other nodes available to select yet.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="conditionalLogic">Conditional logic</Label>
+                <Textarea
+                  id="conditionalLogic"
+                  value={localData.conditionalLogic || ""}
+                  onChange={(event) => handleChange("conditionalLogic", event.target.value)}
+                  placeholder='e.g., Only run if "Intake Review" = Approved'
+                />
+                <p className="text-xs text-gray-500">
+                  Document any rules like "Skip if quality check fails" or "Only run when a prior answer is Yes."
+                </p>
+              </div>
             </div>
-          </>
+
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Scheduling &amp; Time Controls
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Estimate how long the work takes, define deadlines, and automate reminders.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="expectedDuration">Expected duration</Label>
+                <Input
+                  id="expectedDuration"
+                  value={localData.expectedDuration || ""}
+                  onChange={(event) => handleChange("expectedDuration", event.target.value)}
+                  placeholder="e.g., 2h or 1d"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Deadline rules</Label>
+                <RadioGroup
+                  value={deadlineType}
+                  onValueChange={(value) => handleChange("deadlineType", value)}
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="relative" id="deadline-relative" />
+                    <Label htmlFor="deadline-relative" className="font-normal">
+                      Relative to a predecessor
+                    </Label>
+                  </div>
+                  {deadlineType === "relative" ? (
+                    <div className="ml-6 mt-2 flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        className="w-20"
+                        value={localData.deadlineRelativeValue || ""}
+                        onChange={(event) => handleChange("deadlineRelativeValue", event.target.value)}
+                        placeholder="0"
+                      />
+                      <Select
+                        value={deadlineRelativeUnit}
+                        onValueChange={(value) => handleChange("deadlineRelativeUnit", value)}
+                      >
+                        <SelectTrigger className="w-28">
+                          <SelectValue placeholder="Units" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hours">Hours</SelectItem>
+                          <SelectItem value="days">Days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <span className="text-xs text-gray-500">after dependencies finish</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="absolute" id="deadline-absolute" />
+                    <Label htmlFor="deadline-absolute" className="font-normal">
+                      Absolute calendar deadline
+                    </Label>
+                  </div>
+                  {deadlineType === "absolute" ? (
+                    <div className="ml-6 mt-2">
+                      <Input
+                        type="datetime-local"
+                        value={localData.deadlineAbsolute || ""}
+                        onChange={(event) => handleChange("deadlineAbsolute", event.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                </RadioGroup>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Reminder settings</Label>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="reminderEnabled"
+                    checked={reminderEnabled}
+                    onCheckedChange={(checked) => handleChange("reminderEnabled", checked)}
+                  />
+                  <Label htmlFor="reminderEnabled" className="font-normal">
+                    Notify the processor before the deadline
+                  </Label>
+                </div>
+                {reminderEnabled ? (
+                  <div className="ml-6 mt-2 flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      className="w-20"
+                      value={localData.reminderLeadTime || ""}
+                      onChange={(event) => handleChange("reminderLeadTime", event.target.value)}
+                      placeholder="4"
+                    />
+                    <Select
+                      value={reminderUnit}
+                      onValueChange={(value) => handleChange("reminderLeadTimeUnit", value)}
+                    >
+                      <SelectTrigger className="w-28">
+                        <SelectValue placeholder="Units" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="hours">Hours</SelectItem>
+                        <SelectItem value="days">Days</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-xs text-gray-500">before it&apos;s due</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+                  Outputs &amp; Validation
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Capture what this step should produce and the rules for marking it complete.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="outputRequirementType">Output requirements</Label>
+                <Select
+                  value={localData.outputRequirementType || "text"}
+                  onValueChange={(value) => handleChange("outputRequirementType", value)}
+                >
+                  <SelectTrigger id="outputRequirementType">
+                    <SelectValue placeholder="Select output type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="file">File upload</SelectItem>
+                    <SelectItem value="link">Link or URL</SelectItem>
+                    <SelectItem value="text">Text / form response</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="outputStructuredDataTemplate">Output instructions</Label>
+                <Textarea
+                  id="outputStructuredDataTemplate"
+                  value={localData.outputStructuredDataTemplate || ""}
+                  onChange={(event) => handleChange("outputStructuredDataTemplate", event.target.value)}
+                  placeholder="Outline what needs to be attached, linked, or captured."
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="validationRequireOutput"
+                  checked={localData.validationRequireOutput ?? false}
+                  onCheckedChange={(checked) => handleChange("validationRequireOutput", checked)}
+                />
+                <Label htmlFor="validationRequireOutput" className="font-normal">
+                  Require the output before marking this node complete
+                </Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="validationNotes">Validation rules</Label>
+                <Textarea
+                  id="validationNotes"
+                  value={localData.validationNotes || ""}
+                  onChange={(event) => handleChange("validationNotes", event.target.value)}
+                  placeholder='e.g., "Attach signed contract" or "Link must be accessible"'
+                />
+              </div>
+            </div>
+          </div>
         )
+      }
 
       case "conditional":
         return (
