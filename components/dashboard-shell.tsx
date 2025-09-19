@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { type ReactNode } from "react"
 import {
   BarChart3,
@@ -39,7 +40,7 @@ import {
 } from "@/components/ui/sidebar"
 import type { LucideIcon } from "lucide-react"
 
-const navMain: { title: string; url: string; icon: LucideIcon; badge?: string; isActive?: boolean }[] = [
+const navMain: { title: string; url: string; icon: LucideIcon; badge?: string }[] = [
   {
     title: "Overview",
     url: "/?section=overview",
@@ -50,7 +51,11 @@ const navMain: { title: string; url: string; icon: LucideIcon; badge?: string; i
     url: "/",
     icon: ListChecks,
     badge: "24",
-    isActive: true,
+  },
+  {
+    title: "Service Desk",
+    url: "/servicedesk",
+    icon: LifeBuoy,
   },
   {
     title: "Workflow Builder",
@@ -109,6 +114,8 @@ const teams: { name: string; plan: string; initials: string; url: string }[] = [
 ]
 
 function DashboardSidebar() {
+  const pathname = usePathname()
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -137,7 +144,7 @@ function DashboardSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
-                    isActive={item.isActive}
+                    isActive={item.url === pathname}
                     tooltip={item.title}
                   >
                     <Link href={item.url}>
@@ -225,12 +232,24 @@ interface DashboardShellSearchProps {
   placeholder?: string
 }
 
+type DashboardShellHeaderProps = {
+  title: string
+  description?: string
+  icon?: LucideIcon
+}
+
 interface DashboardShellProps {
   children: ReactNode
   search?: DashboardShellSearchProps
+  header?: DashboardShellHeaderProps
 }
 
-export function DashboardShell({ children, search }: DashboardShellProps) {
+export function DashboardShell({ children, search, header }: DashboardShellProps) {
+  const HeaderIcon = header?.icon ?? ListChecks
+  const headerTitle = header?.title ?? "Operations Catalog"
+  const headerDescription =
+    header?.description ?? "Browse SOPs, assign tasks, and orchestrate your processes."
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/20">
@@ -242,12 +261,10 @@ export function DashboardShell({ children, search }: DashboardShellProps) {
               <Separator orientation="vertical" className="mr-2 h-6 md:hidden" />
               <div className="hidden flex-1 flex-col justify-center md:flex">
                 <div className="flex items-center gap-2 text-base font-semibold">
-                  <ListChecks className="h-5 w-5 text-muted-foreground" />
-                  Operations Catalog
+                  <HeaderIcon className="h-5 w-5 text-muted-foreground" />
+                  {headerTitle}
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Browse SOPs, assign tasks, and orchestrate your processes.
-                </p>
+                <p className="text-sm text-muted-foreground">{headerDescription}</p>
               </div>
               <div className="flex flex-1 items-center gap-2 md:justify-end">
                 {search ? (
