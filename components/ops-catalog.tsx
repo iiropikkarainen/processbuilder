@@ -21,6 +21,7 @@ import {
   Pencil,
   Plus,
   Settings,
+  Sparkles,
   Trash2,
 } from "lucide-react"
 
@@ -43,6 +44,15 @@ import {
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 import WorkflowBuilder from "./workflow-builder"
 import { cn } from "@/lib/utils"
@@ -510,6 +520,8 @@ const OWNER_OPTIONS = [
   "Product Manager",
   "Legal Counsel",
 ]
+
+const PROCESS_CREATOR_NAME = "Olivia Martin"
 
 const TIMEZONE_OPTIONS = [
   "UTC",
@@ -1151,11 +1163,42 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [newSopInputs, setNewSopInputs] = useState<
     Record<string, { title: string; owner: string; content: string }>
   >({})
+  const [showAddSop, setShowAddSop] = useState<Record<string, boolean>>({})
+  const [aiPromptCategory, setAiPromptCategory] = useState<string | null>(null)
+  const [aiPromptDraft, setAiPromptDraft] = useState("")
   const [editingSop, setEditingSop] = useState<
     { id: string; categoryId: string; title: string; owner: string } | null
   >(null)
 
-  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }))
+  const toggle = (id: string) =>
+    setExpanded((prev) => {
+      const next = !prev[id]
+
+      if (!next) {
+        setShowAddSop((prevVisible) => ({ ...prevVisible, [id]: false }))
+        if (aiPromptCategory === id) {
+          setAiPromptCategory(null)
+          setAiPromptDraft("")
+        }
+      }
+
+      return { ...prev, [id]: next }
+    })
+
+  const handleToggleAddSop = (categoryId: string) => {
+    setShowAddSop((prev) => {
+      const next = !prev[categoryId]
+
+      if (next) {
+        setExpanded((prevExpanded) => ({ ...prevExpanded, [categoryId]: true }))
+      } else if (aiPromptCategory === categoryId) {
+        setAiPromptCategory(null)
+        setAiPromptDraft("")
+      }
+
+      return { ...prev, [categoryId]: next }
+    })
+  }
 
   const updateSOP = (id: string, newContent: string) => {
     const today = new Date().toISOString().split("T")[0]
@@ -1272,7 +1315,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setNewSopInputs((prev) => {
       const existing = prev[categoryId] ?? {
         title: "",
-        owner: OWNER_OPTIONS[0] ?? "",
+        owner: PROCESS_CREATOR_NAME,
         content: "",
       }
 
@@ -1292,17 +1335,16 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     const form = newSopInputs[categoryId] ?? {
       title: "",
-      owner: OWNER_OPTIONS[0] ?? "",
+      owner: PROCESS_CREATOR_NAME,
       content: "",
     }
 
     const trimmedTitle = form.title.trim()
     if (!trimmedTitle) return
 
-    const owner = form.owner.trim() || OWNER_OPTIONS[0] || "Process Owner"
-    const content = form.content.trim()
-      ? form.content
-      : `# SOP: ${trimmedTitle}
+    const owner = form.owner.trim() || PROCESS_CREATOR_NAME
+    const prompt = form.content.trim()
+    const baseTemplate = `# SOP: ${trimmedTitle}
 
 ## Purpose
 Describe the goal of the procedure.
@@ -1311,6 +1353,13 @@ Describe the goal of the procedure.
 1. Document the first step.
 2. Capture supporting tasks.
 3. Confirm completion with stakeholders.`
+    const content = prompt
+      ? `${baseTemplate}
+
+---
+_AI generation prompt_
+${prompt}`
+      : baseTemplate
 
     const today = new Date().toISOString().split("T")[0]
     const baseId = slugify(trimmedTitle) || "sop"
@@ -1354,7 +1403,7 @@ Describe the goal of the procedure.
 
     setNewSopInputs((prev) => ({
       ...prev,
-      [categoryId]: { title: "", owner, content: "" },
+      [categoryId]: { title: "", owner: PROCESS_CREATOR_NAME, content: "" },
     }))
   }
 
@@ -1526,11 +1575,12 @@ Describe the goal of the procedure.
               const sopForm =
                 newSopInputs[category.id] ?? {
                   title: "",
-                  owner: OWNER_OPTIONS[0] ?? "",
+                  owner: PROCESS_CREATOR_NAME,
                   content: "",
                 }
               const isEditingCategory = editingCategoryId === category.id
               const newSopDisabled = !sopForm.title.trim()
+              const addSopVisible = Boolean(showAddSop[category.id])
 
               return (
                 <div
@@ -1574,6 +1624,23 @@ Describe the goal of the procedure.
                           <span className="font-semibold">{category.title}</span>
                         </button>
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAddSop(category.id)}
+                            aria-pressed={addSopVisible}
+                            aria-label="Toggle Add SOP"
+                            className={cn(
+                              "rounded-full p-2 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
+                              addSopVisible && "bg-blue-50 text-blue-600 hover:bg-blue-100",
+                            )}
+                          >
+                            <Plus
+                              className={cn(
+                                "h-4 w-4 transition",
+                                addSopVisible && "rotate-45",
+                              )}
+                            />
+                          </button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
@@ -1733,49 +1800,130 @@ Describe the goal of the procedure.
                         })}
                       </ul>
 
-                      <div className="space-y-3 border-t bg-gray-50 p-4">
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-900">Add SOP</h4>
-                          <p className="text-xs text-gray-500">
-                            Capture a quick description and starter steps.
-                          </p>
+                      {addSopVisible && (
+                        <div className="space-y-4 border-t bg-gray-50 p-4">
+                          <div>
+                            <h4 className="text-sm font-semibold text-gray-900">Add SOP</h4>
+                            <p className="text-xs text-gray-500">
+                              Capture a quick description and starter steps.
+                            </p>
+                          </div>
+                          <Input
+                            value={sopForm.title}
+                            onChange={(event) =>
+                              handleNewSopInputChange(category.id, "title", event.target.value)
+                            }
+                            placeholder="SOP title"
+                          />
+                          <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Process owner
+                            </div>
+                            <div className="font-medium text-gray-900">{PROCESS_CREATOR_NAME}</div>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Automatically assigned to the process creator.
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                              Import or start from
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                              {SOP_IMPORT_OPTIONS.map((option) => (
+                                <button
+                                  key={`${category.id}-${option.id}`}
+                                  type="button"
+                                  title={option.name}
+                                  className="group flex min-w-[88px] flex-col items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600"
+                                >
+                                  <option.Logo />
+                                  <span className="text-center leading-tight">{option.name}</span>
+                                </button>
+                              ))}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAiPromptDraft(sopForm.content || "")
+                                  setAiPromptCategory(category.id)
+                                }}
+                                aria-label="Generate SOP with AI"
+                                className={cn(
+                                  "group flex min-w-[88px] flex-col items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
+                                  sopForm.content.trim() && "border-blue-300 text-blue-600 hover:border-blue-300",
+                                )}
+                              >
+                                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-blue-500 text-white">
+                                  <Sparkles className="h-5 w-5" />
+                                </div>
+                                <span className="text-center leading-tight">AI process</span>
+                              </button>
+                            </div>
+                          </div>
+                          {sopForm.content.trim() && (
+                            <div className="rounded-lg border border-dashed bg-white px-3 py-2 text-xs text-gray-600">
+                              <div className="font-semibold text-gray-700">AI prompt captured</div>
+                              <p className="mt-1 whitespace-pre-wrap">{sopForm.content}</p>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => handleAddSop(category.id)}
+                            disabled={newSopDisabled}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Plus className="h-4 w-4" /> Add SOP
+                          </button>
+                          <Dialog
+                            open={aiPromptCategory === category.id}
+                            onOpenChange={(open) => {
+                              if (!open) {
+                                setAiPromptCategory(null)
+                                setAiPromptDraft("")
+                              }
+                            }}
+                          >
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Generate SOP with AI</DialogTitle>
+                                <DialogDescription>
+                                  Describe the process you want to document and we will craft a starter SOP.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <Textarea
+                                value={aiPromptDraft}
+                                onChange={(event) => setAiPromptDraft(event.target.value)}
+                                placeholder="e.g. Create an onboarding checklist for new customer success hires"
+                              />
+                              <DialogFooter>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAiPromptCategory(null)
+                                    setAiPromptDraft("")
+                                  }}
+                                  className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const trimmedPrompt = aiPromptDraft.trim()
+                                    if (trimmedPrompt) {
+                                      handleNewSopInputChange(category.id, "content", trimmedPrompt)
+                                    }
+                                    setAiPromptCategory(null)
+                                    setAiPromptDraft("")
+                                  }}
+                                  disabled={!aiPromptDraft.trim()}
+                                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  Use prompt
+                                </button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </div>
-                        <Input
-                          value={sopForm.title}
-                          onChange={(event) =>
-                            handleNewSopInputChange(category.id, "title", event.target.value)
-                          }
-                          placeholder="SOP title"
-                        />
-                        <select
-                          className="w-full rounded-lg border px-3 py-2 text-sm"
-                          value={sopForm.owner || OWNER_OPTIONS[0] || ""}
-                          onChange={(event) =>
-                            handleNewSopInputChange(category.id, "owner", event.target.value)
-                          }
-                        >
-                          {OWNER_OPTIONS.map((owner) => (
-                            <option key={owner} value={owner}>
-                              {owner}
-                            </option>
-                          ))}
-                        </select>
-                        <textarea
-                          value={sopForm.content}
-                          onChange={(event) =>
-                            handleNewSopInputChange(category.id, "content", event.target.value)
-                          }
-                          placeholder="Outline the purpose and 2-3 steps."
-                          className="min-h-[100px] w-full rounded-lg border px-3 py-2 text-sm"
-                        />
-                        <button
-                          onClick={() => handleAddSop(category.id)}
-                          disabled={newSopDisabled}
-                          className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Plus className="h-4 w-4" /> Add SOP
-                        </button>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
