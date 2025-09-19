@@ -1,11 +1,12 @@
+export const dynamic = "force-dynamic"
+
 import OpsCatalog from "@/components/ops-catalog"
+import { AppShell } from "@/components/app-shell"
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col">
-      <div className="flex-1">
-        <OpsCatalog />
-      </div>
-    </main>
+    <AppShell>
+      <OpsCatalog />
+    </AppShell>
   )
 }
