@@ -20,7 +20,6 @@ import {
   Minimize2,
   Pencil,
   Plus,
-  Search,
   Settings,
   Trash2,
 } from "lucide-react"
@@ -86,6 +85,10 @@ type Category = {
 type SlashMenuPosition = {
   top: number
   left: number
+}
+
+interface OpsCatalogProps {
+  query: string
 }
 
 const SAMPLE_DATA: Category[] = [
@@ -1071,8 +1074,7 @@ const filterData = (data: Category[], query: string) => {
     .filter((category): category is Category => Boolean(category))
 }
 
-export default function OpsCatalog() {
-  const [query, setQuery] = useState("")
+export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [selectedSOP, setSelectedSOP] = useState<Sop | null>(null)
   const [data, setData] = useState<Category[]>(SAMPLE_DATA)
@@ -1427,21 +1429,6 @@ Describe the goal of the procedure.
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
-          <div className="text-xl font-semibold">Standard Operating Procedures</div>
-          <div className="relative ml-auto w-full max-w-md">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-            <input
-              className="w-full rounded-xl border py-2 pl-10 pr-3 text-sm focus:outline-none focus:ring-2"
-              placeholder="Search categories or SOPs…"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
       <div
         className={cn(
           "mx-auto grid max-w-6xl gap-6 px-4 py-6",

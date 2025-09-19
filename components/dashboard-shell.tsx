@@ -219,11 +219,18 @@ function DashboardSidebar() {
   )
 }
 
-interface DashboardShellProps {
-  children: ReactNode
+interface DashboardShellSearchProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
 }
 
-export function DashboardShell({ children }: DashboardShellProps) {
+interface DashboardShellProps {
+  children: ReactNode
+  search?: DashboardShellSearchProps
+}
+
+export function DashboardShell({ children, search }: DashboardShellProps) {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-muted/20">
@@ -243,14 +250,23 @@ export function DashboardShell({ children }: DashboardShellProps) {
                 </p>
               </div>
               <div className="flex flex-1 items-center gap-2 md:justify-end">
-                <div className="relative w-full max-w-xs">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="h-9 w-full pl-9"
-                    placeholder="Search processes..."
-                    type="search"
-                  />
-                </div>
+                {search ? (
+                  <div className="relative w-full max-w-xs">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      className="h-9 w-full pl-9"
+                      placeholder={search.placeholder ?? "Search categories or SOPs…"}
+                      type="search"
+                      value={search.value}
+                      onChange={(event) => search.onChange(event.target.value)}
+                    />
+                  </div>
+                ) : (
+                  <div className="relative w-full max-w-xs">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input className="h-9 w-full pl-9" placeholder="Search processes..." type="search" />
+                  </div>
+                )}
                 <Button size="sm" className="hidden sm:inline-flex">
                   <Plus className="mr-2 h-4 w-4" />
                   New process
