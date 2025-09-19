@@ -1574,20 +1574,36 @@ Describe the goal of the procedure.
                           <span className="font-semibold">{category.title}</span>
                         </button>
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => startEditCategory(category)}
-                            className="rounded-lg border p-2 hover:bg-gray-50"
-                            aria-label={`Edit ${category.title}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCategory(category.id)}
-                            className="rounded-lg border p-2 text-red-600 hover:bg-red-50"
-                            aria-label={`Delete ${category.title}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                aria-label={`Category actions for ${category.title}`}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-40">
+                              <DropdownMenuItem
+                                onSelect={(event) => {
+                                  event.preventDefault()
+                                  startEditCategory(category)
+                                }}
+                              >
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={(event) => {
+                                  event.preventDefault()
+                                  handleDeleteCategory(category.id)
+                                }}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </>
                     )}
@@ -1683,7 +1699,7 @@ Describe the goal of the procedure.
                                       <DropdownMenuTrigger asChild>
                                         <button
                                           type="button"
-                                          className="rounded-lg border p-2 hover:bg-gray-50"
+                                          className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
                                           aria-label={`SOP actions for ${sop.title}`}
                                         >
                                           <MoreHorizontal className="h-4 w-4" />
