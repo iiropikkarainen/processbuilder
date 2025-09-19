@@ -91,6 +91,67 @@ interface OpsCatalogProps {
   query: string
 }
 
+type SopImportOption = {
+  id: string
+  name: string
+  description: string
+  Logo: () => JSX.Element
+}
+
+const GoogleDocsLogo = () => (
+  <div className="relative flex h-10 w-10 items-center justify-center rounded-md bg-[#1a73e8] text-white">
+    <div className="absolute inset-x-[6px] top-[6px] h-1 rounded bg-white/70" />
+    <div className="absolute inset-x-[6px] top-[13px] h-3 rounded bg-white" />
+    <div className="absolute inset-x-[6px] bottom-[6px] h-1 rounded bg-[#8ab4f8]" />
+    <FileText className="relative h-4 w-4 opacity-60" />
+  </div>
+)
+
+const NotionLogo = () => (
+  <div className="flex h-10 w-10 items-center justify-center rounded-md border border-black bg-white font-semibold text-black">
+    N
+  </div>
+)
+
+const WordLogo = () => (
+  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-[#185abd] to-[#103f91] font-semibold text-white">
+    W
+  </div>
+)
+
+const PdfLogo = () => (
+  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#d93025] text-xs font-semibold uppercase tracking-wide text-white">
+    PDF
+  </div>
+)
+
+const SOP_IMPORT_OPTIONS: SopImportOption[] = [
+  {
+    id: "google-docs",
+    name: "Google Docs",
+    description: "Import SOP drafts from shared Google documents.",
+    Logo: GoogleDocsLogo,
+  },
+  {
+    id: "notion",
+    name: "Notion",
+    description: "Sync workspace pages that your team already maintains.",
+    Logo: NotionLogo,
+  },
+  {
+    id: "microsoft-word",
+    name: "Microsoft Word",
+    description: "Upload .docx files stored in OneDrive or shared drives.",
+    Logo: WordLogo,
+  },
+  {
+    id: "pdf",
+    name: "PDF Document",
+    description: "Attach finalized SOP PDFs for quick reference and review.",
+    Logo: PdfLogo,
+  },
+]
+
 const SAMPLE_DATA: Category[] = [
   {
     id: "finance-accounting",
@@ -1773,8 +1834,40 @@ Describe the goal of the procedure.
 
           <div className="flex-1 min-h-0 overflow-hidden">
             {!selectedSOP ? (
-              <div className="p-4 text-sm text-gray-500">
-                Select an SOP from the left to preview.
+              <div className="flex h-full flex-col items-center justify-center gap-8 p-8 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="rounded-full bg-blue-50 p-4">
+                    <FileText className="h-8 w-8 text-blue-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Bring your SOPs into Operations Catalog
+                    </h3>
+                    <p className="max-w-xl text-sm text-gray-500">
+                      Upload SOP documents from the tools your teams already use so everything lives in one organized
+                      workspace.
+                    </p>
+                  </div>
+                </div>
+                <div className="grid w-full max-w-2xl gap-3 sm:grid-cols-2">
+                  {SOP_IMPORT_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                    >
+                      <option.Logo />
+                      <div className="flex-1">
+                        <p className="text-sm font-semibold text-gray-900">{option.name}</p>
+                        <p className="mt-1 text-xs text-gray-500">{option.description}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-gray-300 transition group-hover:text-blue-400" />
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400">
+                  More import options coming soon. You can also upload files directly from your device.
+                </p>
               </div>
             ) : (
               <div className="h-full">
