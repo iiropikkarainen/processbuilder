@@ -1,11 +1,10 @@
 import OpsCatalog from "@/components/ops-catalog"
+import { DashboardShell } from "@/components/dashboard-shell"
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col">
-      <div className="flex-1">
-        <OpsCatalog />
-      </div>
-    </main>
+    <DashboardShell>
+      <OpsCatalog />
+    </DashboardShell>
   )
 }
