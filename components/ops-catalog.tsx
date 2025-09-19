@@ -16,7 +16,6 @@ import {
   FileText,
   ListChecks,
   Maximize2,
-  MoreHorizontal,
   Minimize2,
   Pencil,
   Plus,
@@ -28,12 +27,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select,
@@ -1572,16 +1565,7 @@ Describe the goal of the procedure.
                                       />
                                     ) : (
                                       <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedSOP(sop)
-                                            setViewMode("editor")
-                                          }}
-                                          className="w-full truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                        >
-                                          {sop.title}
-                                        </button>
+                                        <div className="truncate font-medium">{sop.title}</div>
                                         <div className="truncate text-xs text-gray-500">
                                           {sop.owner} • Updated {sop.lastUpdated}
                                         </div>
@@ -1631,36 +1615,31 @@ Describe the goal of the procedure.
                                       </button>
                                     </>
                                   ) : (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <button
-                                          type="button"
-                                          className="rounded-lg border p-2 hover:bg-gray-50"
-                                          aria-label={`SOP actions for ${sop.title}`}
-                                        >
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-44">
-                                        <DropdownMenuItem
-                                          onSelect={(event) => {
-                                            event.preventDefault()
-                                            startEditSop(category.id, sop)
-                                          }}
-                                        >
-                                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onSelect={(event) => {
-                                            event.preventDefault()
-                                            handleDeleteSop(category.id, sop.id)
-                                          }}
-                                          className="text-red-600 focus:text-red-600"
-                                        >
-                                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedSOP(sop)
+                                          setViewMode("editor")
+                                        }}
+                                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
+                                      >
+                                        Open SOP
+                                      </button>
+                                      <button
+                                        onClick={() => startEditSop(category.id, sop)}
+                                        className="rounded-lg border p-2 hover:bg-gray-50"
+                                        aria-label={`Edit ${sop.title}`}
+                                      >
+                                        <Pencil className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteSop(category.id, sop.id)}
+                                        className="rounded-lg border p-2 text-red-600 hover:bg-red-50"
+                                        aria-label={`Delete ${sop.title}`}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>
