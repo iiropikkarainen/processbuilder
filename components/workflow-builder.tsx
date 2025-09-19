@@ -409,15 +409,15 @@ export default function WorkflowBuilder({
   }
 
   return (
-    <div className={cn("flex h-full min-h-[600px] w-full bg-white", className)}>
-      <div className="w-64 border-r border-gray-200 p-4 bg-gray-50">
-        <h2 className="text-lg font-semibold mb-4">Node Library</h2>
-        <NodeLibrary />
-      </div>
+    <ReactFlowProvider>
+      <div className={cn("flex h-full min-h-[600px] w-full bg-white", className)}>
+        <div className="w-64 border-r border-gray-200 p-4 bg-gray-50">
+          <h2 className="text-lg font-semibold mb-4">Node Library</h2>
+          <NodeLibrary />
+        </div>
 
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1" ref={reactFlowWrapper}>
-          <ReactFlowProvider>
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1" ref={reactFlowWrapper}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -456,19 +456,19 @@ export default function WorkflowBuilder({
                 </div>
               </Panel>
             </ReactFlow>
-          </ReactFlowProvider>
+          </div>
         </div>
-      </div>
 
-      {selectedNode && (
-        <div className="w-80 border-l border-gray-200 p-4 bg-gray-50">
-          <NodeConfigPanel
-            node={selectedNode as WorkflowNode}
-            updateNodeData={updateNodeData}
-            onClose={() => setSelectedNode(null)}
-          />
-        </div>
-      )}
-    </div>
+        {selectedNode && (
+          <div className="w-80 border-l border-gray-200 p-4 bg-gray-50">
+            <NodeConfigPanel
+              node={selectedNode as WorkflowNode}
+              updateNodeData={updateNodeData}
+              onClose={() => setSelectedNode(null)}
+            />
+          </div>
+        )}
+      </div>
+    </ReactFlowProvider>
   )
 }
