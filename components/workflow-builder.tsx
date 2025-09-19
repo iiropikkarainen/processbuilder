@@ -71,6 +71,26 @@ const areTaskListsEqual = (a?: Task[], b: Task[] = []): boolean => {
 const DEFAULT_HORIZONTAL_POSITION = 250
 const VERTICAL_NODE_SPACING = 180
 
+const createWorkflowJSONReplacer = () => {
+  const seen = new WeakSet()
+
+  return (_key: string, value: any) => {
+    if (typeof value === "function") {
+      return undefined
+    }
+
+    if (typeof value === "object" && value !== null) {
+      if (seen.has(value)) {
+        return undefined
+      }
+
+      seen.add(value)
+    }
+
+    return value
+  }
+}
+
 const generateSequentialFlow = (tasks: Task[]) => {
   const generatedNodes: Node<NodeData>[] = []
   const generatedEdges: Edge[] = []
@@ -316,7 +336,7 @@ export default function WorkflowBuilder({
     }
 
     const workflow = { nodes, edges }
-    const workflowString = JSON.stringify(workflow)
+    const workflowString = JSON.stringify(workflow, createWorkflowJSONReplacer())
     localStorage.setItem("workflow", workflowString)
 
     toast({
