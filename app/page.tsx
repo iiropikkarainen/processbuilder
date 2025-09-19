@@ -1,3 +1,5 @@
+"use client"
+
 export const dynamic = "force-dynamic"
 
 import OpsCatalog from "@/components/ops-catalog"
