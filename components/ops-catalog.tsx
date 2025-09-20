@@ -1974,7 +1974,7 @@ ${prompt}`
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setFullscreen((prev) => !prev)}
-                className="rounded-lg border p-1 hover:bg-gray-50"
+                className="rounded-lg p-1 hover:bg-gray-50"
               >
                 {fullscreen ? (
                   <Minimize2 className="h-4 w-4" />
@@ -1989,11 +1989,11 @@ ${prompt}`
                 <button
                   onClick={() => setViewMode("editor")}
                   className={cn(
-                    "rounded-lg border px-2 py-1 text-xs",
+                    "flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
                     viewMode === "editor" && "bg-gray-100",
                   )}
                 >
-                  Editor
+                  <Pencil className="h-4 w-4" /> Process Editor
                 </button>
                 <button
                   onClick={() => setViewMode("process")}
@@ -2002,16 +2002,7 @@ ${prompt}`
                     viewMode === "process" && "bg-gray-100",
                   )}
                 >
-                  <ListChecks className="h-4 w-4" /> Process View
-                </button>
-                <button
-                  onClick={() => setViewMode("calendar")}
-                  className={cn(
-                    "flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
-                    viewMode === "calendar" && "bg-gray-100",
-                  )}
-                >
-                  <CalendarIcon className="h-4 w-4" /> Calendar View
+                  <ListChecks className="h-4 w-4" /> Process Designer
                 </button>
                 <button
                   onClick={() => setViewMode("settings")}
@@ -2021,6 +2012,15 @@ ${prompt}`
                   )}
                 >
                   <Settings className="h-4 w-4" /> Process Settings
+                </button>
+                <button
+                  onClick={() => setViewMode("calendar")}
+                  className={cn(
+                    "flex items-center gap-1 rounded-lg border px-2 py-1 text-xs",
+                    viewMode === "calendar" && "bg-gray-100",
+                  )}
+                >
+                  <CalendarIcon className="h-4 w-4" /> Processor Portal
                 </button>
               </div>
             )}
