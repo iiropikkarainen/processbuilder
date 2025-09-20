@@ -549,6 +549,33 @@ const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "")
 
+const buildSopContent = (title: string, prompt?: string) => {
+  const baseTemplate = `# Process: ${title}
+
+## Purpose
+Describe the goal of the procedure.
+
+## Process
+1. Document the first step.
+2. Capture supporting tasks.
+3. Confirm completion with stakeholders.`
+
+  if (!prompt) {
+    return baseTemplate
+  }
+
+  const trimmedPrompt = prompt.trim()
+  if (!trimmedPrompt) {
+    return baseTemplate
+  }
+
+  return `${baseTemplate}
+
+---
+_AI generation prompt_
+${trimmedPrompt}`
+}
+
 interface SlashMenuProps {
   position: SlashMenuPosition | null
   onSelect: (item: string) => void
@@ -1167,6 +1194,13 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [showAddSop, setShowAddSop] = useState<Record<string, boolean>>({})
   const [aiPromptCategory, setAiPromptCategory] = useState<string | null>(null)
   const [aiPromptDraft, setAiPromptDraft] = useState("")
+  const [processViewerPromptTitle, setProcessViewerPromptTitle] = useState("")
+  const [processViewerPrompt, setProcessViewerPrompt] = useState("")
+  const [pendingProcessViewerPrompt, setPendingProcessViewerPrompt] = useState<
+    { title: string; prompt: string } | null
+  >(null)
+  const [showCategorySelection, setShowCategorySelection] = useState(false)
+  const [selectedCategoryForViewerPrompt, setSelectedCategoryForViewerPrompt] = useState("")
   const [editingSop, setEditingSop] = useState<
     { id: string; categoryId: string; title: string; owner: string } | null
   >(null)
@@ -1355,22 +1389,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     const owner = form.owner.trim() || PROCESS_CREATOR_NAME
     const prompt = form.content.trim()
-    const baseTemplate = `# Process: ${trimmedTitle}
-
-## Purpose
-Describe the goal of the procedure.
-
-## Process
-1. Document the first step.
-2. Capture supporting tasks.
-3. Confirm completion with stakeholders.`
-    const content = prompt
-      ? `${baseTemplate}
-
----
-_AI generation prompt_
-${prompt}`
-      : baseTemplate
+    const content = buildSopContent(trimmedTitle, prompt)
 
     const today = new Date().toISOString().split("T")[0]
     const baseId = slugify(trimmedTitle) || "sop"
@@ -1416,6 +1435,100 @@ ${prompt}`
       ...prev,
       [categoryId]: { title: "", owner: PROCESS_CREATOR_NAME, content: "" },
     }))
+  }
+
+  const handleSubmitProcessViewerPrompt = () => {
+    const trimmedTitle = processViewerPromptTitle.trim()
+    const trimmedPrompt = processViewerPrompt.trim()
+
+    if (!trimmedTitle || !trimmedPrompt || data.length === 0) {
+      return
+    }
+
+    setPendingProcessViewerPrompt({ title: trimmedTitle, prompt: trimmedPrompt })
+    setSelectedCategoryForViewerPrompt((prev) => {
+      if (prev && data.some((category) => category.id === prev)) {
+        return prev
+      }
+      return data[0]?.id ?? ""
+    })
+    setShowCategorySelection(true)
+  }
+
+  const handleConfirmProcessViewerPrompt = () => {
+    if (!pendingProcessViewerPrompt) {
+      return
+    }
+
+    const fallbackCategoryId = data[0]?.id ?? ""
+    const resolvedCategoryId = data.some((category) => category.id === selectedCategoryForViewerPrompt)
+      ? selectedCategoryForViewerPrompt
+      : fallbackCategoryId
+
+    if (!resolvedCategoryId) {
+      return
+    }
+
+    const category = data.find((item) => item.id === resolvedCategoryId)
+    if (!category) {
+      return
+    }
+
+    const timestamp = Date.now()
+    const baseId = slugify(pendingProcessViewerPrompt.title) || "sop"
+    const sopId = `${baseId}-${timestamp}`
+    const firstSubcategoryId = category.subcategories[0]?.id ?? `${resolvedCategoryId}-general`
+    const owner = PROCESS_CREATOR_NAME
+    const today = new Date().toISOString().split("T")[0]
+    const content = buildSopContent(
+      pendingProcessViewerPrompt.title,
+      pendingProcessViewerPrompt.prompt,
+    )
+
+    const newSop: Sop = {
+      id: sopId,
+      title: pendingProcessViewerPrompt.title,
+      subcategoryId: firstSubcategoryId,
+      owner,
+      lastUpdated: today,
+      content,
+      processSettings: {
+        owner,
+        processType: "one-time",
+        recurrence: {
+          frequency: "monthly",
+          customDays: [],
+          time: "09:00",
+          timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
+        },
+        vaultAccess: [],
+      },
+    }
+
+    setData((prev) =>
+      prev.map((item) => {
+        if (item.id !== resolvedCategoryId) return item
+
+        const hasSubcategories = item.subcategories.length > 0
+
+        return {
+          ...item,
+          subcategories: hasSubcategories
+            ? item.subcategories
+            : [{ id: firstSubcategoryId, title: "General" }],
+          sops: [...item.sops, newSop],
+        }
+      }),
+    )
+
+    setExpanded((prev) => ({ ...prev, [resolvedCategoryId]: true }))
+    setShowCategorySelection(false)
+    setPendingProcessViewerPrompt(null)
+    setProcessViewerPromptTitle("")
+    setProcessViewerPrompt("")
+    setSelectedCategoryForViewerPrompt(resolvedCategoryId)
+    setSelectedSOP(newSop)
+    setViewMode("editor")
   }
 
   const handleDeleteSop = (categoryId: string, sopId: string) => {
@@ -1547,6 +1660,10 @@ ${prompt}`
   }, [selectedSOP])
 
   const filteredData = filterData(data, query)
+  const processViewerPromptDisabled =
+    !processViewerPromptTitle.trim() || !processViewerPrompt.trim() || data.length === 0
+  const pendingProcessViewerTitle =
+    pendingProcessViewerPrompt?.title ?? processViewerPromptTitle.trim()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -2058,6 +2175,110 @@ ${prompt}`
                       <ChevronRight className="h-4 w-4 text-gray-300 transition group-hover:text-blue-400" />
                     </button>
                   ))}
+                </div>
+                <div className="w-full max-w-2xl text-left">
+                  <div className="rounded-2xl border border-dashed border-blue-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-purple-500 to-blue-500 text-white">
+                        <Sparkles className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-gray-900">Generate a new process with AI</h4>
+                        <p className="text-xs text-gray-500">
+                          Describe the process you need and add it directly to your catalog.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      <Input
+                        value={processViewerPromptTitle}
+                        onChange={(event) => setProcessViewerPromptTitle(event.target.value)}
+                        placeholder="Process title"
+                      />
+                      <Textarea
+                        value={processViewerPrompt}
+                        onChange={(event) => setProcessViewerPrompt(event.target.value)}
+                        placeholder="Describe the process you want to generate"
+                        className="min-h-[120px]"
+                      />
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-gray-400">
+                          You'll choose a category after submitting your prompt.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleSubmitProcessViewerPrompt}
+                          disabled={processViewerPromptDisabled}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Sparkles className="h-4 w-4" /> Continue
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <Dialog
+                    open={showCategorySelection}
+                    onOpenChange={(open) => {
+                      if (!open) {
+                        setShowCategorySelection(false)
+                        setPendingProcessViewerPrompt(null)
+                      }
+                    }}
+                  >
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Select a category</DialogTitle>
+                        <DialogDescription>
+                          {pendingProcessViewerTitle
+                            ? `Choose where “${pendingProcessViewerTitle}” belongs in your catalog.`
+                            : "Choose where this process belongs in your catalog."}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <Select
+                          value={selectedCategoryForViewerPrompt}
+                          onValueChange={setSelectedCategoryForViewerPrompt}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {data.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.title}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {pendingProcessViewerPrompt && (
+                          <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                            <div className="font-semibold text-gray-700">AI prompt</div>
+                            <p className="mt-1 whitespace-pre-wrap">{pendingProcessViewerPrompt.prompt}</p>
+                          </div>
+                        )}
+                      </div>
+                      <DialogFooter>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCategorySelection(false)
+                            setPendingProcessViewerPrompt(null)
+                          }}
+                          className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleConfirmProcessViewerPrompt}
+                          disabled={!selectedCategoryForViewerPrompt}
+                          className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Add process
+                        </button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
                 <p className="text-xs text-gray-400">
                   More import options coming soon. You can also upload files directly from your device.
