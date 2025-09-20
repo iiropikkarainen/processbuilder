@@ -13,7 +13,7 @@ export default function Home() {
       search={{
         value: query,
         onChange: setQuery,
-        placeholder: "Search categories or SOPs…",
+        placeholder: "Search categories or Processes…",
       }}
     >
       <OpsCatalog query={query} />

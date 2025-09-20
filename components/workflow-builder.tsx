@@ -350,7 +350,7 @@ export default function WorkflowBuilder({
         title: "Process flow generated",
         description:
           tasks.length > 0
-            ? "Nodes were created automatically from the SOP steps."
+            ? "Nodes were created automatically from the Process steps."
             : "A default input and output were created for this process.",
       })
 

@@ -139,7 +139,7 @@ const SOP_IMPORT_OPTIONS: SopImportOption[] = [
   {
     id: "google-docs",
     name: "Google Docs",
-    description: "Import SOP drafts from shared Google documents.",
+    description: "Import process drafts from shared Google documents.",
     Logo: GoogleDocsLogo,
   },
   {
@@ -157,7 +157,7 @@ const SOP_IMPORT_OPTIONS: SopImportOption[] = [
   {
     id: "pdf",
     name: "PDF Document",
-    description: "Attach finalized SOP PDFs for quick reference and review.",
+    description: "Attach finalized process PDFs for quick reference and review.",
     Logo: PdfLogo,
   },
 ]
@@ -177,7 +177,7 @@ const SAMPLE_DATA: Category[] = [
         subcategoryId: "payroll-benefits",
         owner: "Finance Manager",
         lastUpdated: "2025-09-10",
-        content: `# SOP: Payroll & Benefits Processing (Canada)
+        content: `# Process: Payroll & Benefits Processing (Canada)
 
 **Category:** Finance & Accounting
 **System of Record:** Deel
@@ -214,7 +214,7 @@ Ensure accurate, timely payroll.
         subcategoryId: "hr-onboarding",
         owner: "HR Lead",
         lastUpdated: "2025-08-01",
-        content: `# SOP: New Hire Onboarding Checklist
+        content: `# Process: New Hire Onboarding Checklist
 
 **Category:** Human Resources
 **System of Record:** BambooHR
@@ -251,7 +251,7 @@ Welcome and equip new employees.
         subcategoryId: "sales-pipeline",
         owner: "Sales Director",
         lastUpdated: "2025-07-12",
-        content: `# SOP: Quarterly Pipeline Review
+        content: `# Process: Quarterly Pipeline Review
 
 **Category:** Sales & Business Development
 **System of Record:** Salesforce
@@ -288,7 +288,7 @@ Keep pipeline data clean and forecast accurate.
         subcategoryId: "support-escalation",
         owner: "Customer Support Lead",
         lastUpdated: "2025-06-20",
-        content: `# SOP: Critical Incident Escalation
+        content: `# Process: Critical Incident Escalation
 
 **Category:** Customer Support
 **System of Record:** Zendesk
@@ -325,7 +325,7 @@ Ensure urgent cases are resolved quickly.
         subcategoryId: "it-access",
         owner: "IT Administrator",
         lastUpdated: "2025-09-05",
-        content: `# SOP: Provisioning New Employee Accounts
+        content: `# Process: Provisioning New Employee Accounts
 
 **Category:** IT & Security
 **System of Record:** Okta
@@ -362,7 +362,7 @@ Provide secure access to required systems.
         subcategoryId: "marketing-campaign",
         owner: "Marketing Manager",
         lastUpdated: "2025-05-18",
-        content: `# SOP: Weekly Newsletter Production
+        content: `# Process: Weekly Newsletter Production
 
 **Category:** Marketing & Communications
 **System of Record:** HubSpot
@@ -399,7 +399,7 @@ Deliver timely customer communications.
         subcategoryId: "ops-inventory",
         owner: "Operations Manager",
         lastUpdated: "2025-04-09",
-        content: `# SOP: Monthly Inventory Reconciliation
+        content: `# Process: Monthly Inventory Reconciliation
 
 **Category:** Operations & Logistics
 **System of Record:** NetSuite
@@ -436,7 +436,7 @@ Keep stock counts accurate for planning.
         subcategoryId: "product-release",
         owner: "Product Manager",
         lastUpdated: "2025-03-15",
-        content: `# SOP: Product Release Go-Live Checklist
+        content: `# Process: Product Release Go-Live Checklist
 
 **Category:** Product & Engineering
 **System of Record:** Jira
@@ -473,7 +473,7 @@ Coordinate smooth release deployments.
         subcategoryId: "legal-contract",
         owner: "Legal Counsel",
         lastUpdated: "2025-02-22",
-        content: `# SOP: Standard Contract Review Workflow
+        content: `# Process: Standard Contract Review Workflow
 
 **Category:** Legal & Compliance
 **System of Record:** Ironclad
@@ -822,7 +822,7 @@ const ProcessSettingsView = ({ settings, onChange }: ProcessSettingsViewProps) =
   if (!settings) {
     return (
       <div className="text-sm text-gray-500">
-        Select an SOP from the catalog to configure its process settings.
+        Select a Process from the catalog to configure its process settings.
       </div>
     )
   }
@@ -1272,7 +1272,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     if (typeof window !== "undefined") {
       const confirmed = window.confirm(
-        `Delete category "${category.title}" and all associated SOPs?`,
+        `Delete category "${category.title}" and all associated Processes?`,
       )
       if (!confirmed) return
     }
@@ -1344,7 +1344,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     const owner = form.owner.trim() || PROCESS_CREATOR_NAME
     const prompt = form.content.trim()
-    const baseTemplate = `# SOP: ${trimmedTitle}
+    const baseTemplate = `# Process: ${trimmedTitle}
 
 ## Purpose
 Describe the goal of the procedure.
@@ -1409,7 +1409,7 @@ ${prompt}`
 
   const handleDeleteSop = (categoryId: string, sopId: string) => {
     if (typeof window !== "undefined") {
-      const confirmed = window.confirm("Delete this SOP?")
+      const confirmed = window.confirm("Delete this Process?")
       if (!confirmed) return
     }
 
@@ -1551,7 +1551,7 @@ ${prompt}`
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Add category</h3>
                 <p className="text-xs text-gray-500">
-                  Group related SOPs by department or team.
+                  Group related processes by department or team.
                 </p>
               </div>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -1628,7 +1628,7 @@ ${prompt}`
                             type="button"
                             onClick={() => handleToggleAddSop(category.id)}
                             aria-pressed={addSopVisible}
-                            aria-label="Toggle Add SOP"
+                            aria-label="Toggle Add Process"
                             className={cn(
                               "rounded-full p-2 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
                               addSopVisible && "bg-blue-50 text-blue-600 hover:bg-blue-100",
@@ -1699,7 +1699,7 @@ ${prompt}`
                                           )
                                         }
                                         className="h-9"
-                                        placeholder="Update SOP title"
+                                        placeholder="Update Process title"
                                       />
                                     ) : (
                                       <>
@@ -1767,7 +1767,7 @@ ${prompt}`
                                         <button
                                           type="button"
                                           className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                          aria-label={`SOP actions for ${sop.title}`}
+                                          aria-label={`Process actions for ${sop.title}`}
                                         >
                                           <MoreHorizontal className="h-4 w-4" />
                                         </button>
@@ -1803,7 +1803,7 @@ ${prompt}`
                       {addSopVisible && (
                         <div className="space-y-4 border-t bg-gray-50 p-4">
                           <div>
-                            <h4 className="text-sm font-semibold text-gray-900">Add SOP</h4>
+                            <h4 className="text-sm font-semibold text-gray-900">Add Process</h4>
                             <p className="text-xs text-gray-500">
                               Capture a quick description and starter steps.
                             </p>
@@ -1813,7 +1813,7 @@ ${prompt}`
                             onChange={(event) =>
                               handleNewSopInputChange(category.id, "title", event.target.value)
                             }
-                            placeholder="SOP title"
+                            placeholder="Process title"
                           />
                           <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
                             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -1846,7 +1846,7 @@ ${prompt}`
                                   setAiPromptDraft(sopForm.content || "")
                                   setAiPromptCategory(category.id)
                                 }}
-                                aria-label="Generate SOP with AI"
+                                aria-label="Generate Process with AI"
                                 className={cn(
                                   "group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
                                   sopForm.content.trim() && "border-blue-300 text-blue-600 hover:border-blue-300",
@@ -1870,7 +1870,7 @@ ${prompt}`
                             disabled={newSopDisabled}
                             className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <Plus className="h-4 w-4" /> Add SOP
+                            <Plus className="h-4 w-4" /> Add Process
                           </button>
                           <Dialog
                             open={aiPromptCategory === category.id}
@@ -1883,9 +1883,9 @@ ${prompt}`
                           >
                             <DialogContent>
                               <DialogHeader>
-                                <DialogTitle>Generate SOP with AI</DialogTitle>
+                                <DialogTitle>Generate Process with AI</DialogTitle>
                                 <DialogDescription>
-                                  Describe the process you want to document and we will craft a starter SOP.
+                                  Describe the process you want to document and we will craft a starter process.
                                 </DialogDescription>
                               </DialogHeader>
                               <Textarea
@@ -1952,7 +1952,7 @@ ${prompt}`
                   <Maximize2 className="h-4 w-4" />
                 )}
               </button>
-              <div className="font-semibold">SOP Viewer</div>
+              <div className="font-semibold">Process Viewer</div>
             </div>
             {selectedSOP && (
               <div className="flex gap-2">
@@ -2005,10 +2005,10 @@ ${prompt}`
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      Bring your SOPs into Operations Catalog
+                      Bring your Processes into Operations Catalog
                     </h3>
                     <p className="max-w-xl text-sm text-gray-500">
-                      Upload SOP documents from the tools your teams already use so everything lives in one organized
+                      Upload process documents from the tools your teams already use so everything lives in one organized
                       workspace.
                     </p>
                   </div>
