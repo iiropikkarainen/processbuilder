@@ -4,7 +4,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -55,6 +54,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 
 import WorkflowBuilder from "./workflow-builder"
+import { ProcessEditor, extractPlainText } from "./process-editor"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/lib/types"
 
@@ -90,11 +90,6 @@ type Category = {
   title: string
   subcategories: Subcategory[]
   sops: Sop[]
-}
-
-type SlashMenuPosition = {
-  top: number
-  left: number
 }
 
 interface OpsCatalogProps {
@@ -501,14 +496,6 @@ Ensure consistent legal risk evaluation.
   },
 ]
 
-const slashMenuOptions = [
-  { category: "AI", items: ["AI Prompt"] },
-  {
-    category: "Attach from",
-    items: ["PDF", "Notion", "Google Doc", "Word", "Scribe", "Loom"],
-  },
-]
-
 const OWNER_OPTIONS = [
   "Finance Manager",
   "Operations Manager",
@@ -574,108 +561,6 @@ Describe the goal of the procedure.
 ---
 _AI generation prompt_
 ${trimmedPrompt}`
-}
-
-interface SlashMenuProps {
-  position: SlashMenuPosition | null
-  onSelect: (item: string) => void
-}
-
-const SlashMenu = ({ position, onSelect }: SlashMenuProps) => {
-  if (!position) return null
-
-  return (
-    <div
-      className="absolute z-50 w-56 rounded-xl border bg-white shadow-lg"
-      style={{ top: position.top, left: position.left }}
-    >
-      {slashMenuOptions.map((option) => (
-        <div key={option.category} className="p-2">
-          <div className="mb-1 text-xs font-semibold text-gray-500">
-            {option.category}
-          </div>
-          {option.items.map((item) => (
-            <div
-              key={item}
-              onClick={() => onSelect(item)}
-              className="cursor-pointer rounded px-3 py-1 text-sm hover:bg-gray-100"
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-interface EditorProps {
-  content: string
-  onChange: (value: string) => void
-}
-
-const Editor = ({ content, onChange }: EditorProps) => {
-  const editorRef = useRef<HTMLDivElement>(null)
-  const [slashPos, setSlashPos] = useState<SlashMenuPosition | null>(null)
-
-  useEffect(() => {
-    if (editorRef.current && editorRef.current.innerText !== content) {
-      editorRef.current.innerText = content
-    }
-  }, [content])
-
-  const handleInput = (event: React.FormEvent<HTMLDivElement>) => {
-    const text = event.currentTarget.innerText
-    onChange(text)
-
-    if (typeof window === "undefined") return
-
-    const selection = window.getSelection()
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-      const containerRect = editorRef.current?.getBoundingClientRect()
-
-      const anchorText = selection.anchorNode?.textContent ?? ""
-      const textBefore = anchorText.slice(0, selection.anchorOffset)
-
-      if (containerRect && textBefore.endsWith("/")) {
-        setSlashPos({
-          top: rect.bottom - containerRect.top + 20,
-          left: rect.left - containerRect.left,
-        })
-      } else {
-        setSlashPos(null)
-      }
-    }
-  }
-
-  const handleSelect = (item: string) => {
-    if (typeof window === "undefined") return
-
-    const selection = window.getSelection()
-    const anchorNode = selection?.anchorNode
-
-    if (anchorNode && anchorNode.textContent) {
-      anchorNode.textContent = anchorNode.textContent.replace(/\/$/, `${item} `)
-      onChange(editorRef.current?.innerText ?? "")
-    }
-
-    setSlashPos(null)
-  }
-
-  return (
-    <div className="relative">
-      <div
-        ref={editorRef}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={handleInput}
-        className="min-h-[300px] w-full bg-transparent p-4 text-sm leading-6 focus:outline-none"
-      />
-      <SlashMenu position={slashPos} onSelect={handleSelect} />
-    </div>
-  )
 }
 
 interface ProcessViewProps {
@@ -1642,8 +1527,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       return
     }
 
-    const steps = selectedSOP.content
-      .split("\n")
+    const steps = extractPlainText(selectedSOP.content)
+      .split(/\n+/)
       .filter((line) => line.trim().match(/^\d+\./))
       .map((line, index) => ({
         id: index + 1,
@@ -2292,8 +2177,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     viewMode !== "editor" && "hidden",
                   )}
                 >
-                  <Editor
-                    content={selectedSOP.content}
+                  <ProcessEditor
+                    value={selectedSOP.content}
                     onChange={(value) => updateSOP(selectedSOP.id, value)}
                   />
                 </div>
