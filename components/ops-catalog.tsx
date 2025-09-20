@@ -1828,13 +1828,13 @@ ${prompt}`
                             <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                               Import or start from
                             </div>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="flex flex-wrap gap-2">
                               {SOP_IMPORT_OPTIONS.map((option) => (
                                 <button
                                   key={`${category.id}-${option.id}`}
                                   type="button"
                                   title={option.name}
-                                  className="group flex min-w-[88px] flex-col items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600"
+                                  className="group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600"
                                 >
                                   <option.Logo />
                                   <span className="text-center leading-tight">{option.name}</span>
@@ -1848,12 +1848,12 @@ ${prompt}`
                                 }}
                                 aria-label="Generate SOP with AI"
                                 className={cn(
-                                  "group flex min-w-[88px] flex-col items-center gap-2 rounded-lg border border-dashed border-gray-200 bg-white p-3 text-xs font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
+                                  "group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
                                   sopForm.content.trim() && "border-blue-300 text-blue-600 hover:border-blue-300",
                                 )}
                               >
-                                <div className="flex h-10 w-10 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-blue-500 text-white">
-                                  <Sparkles className="h-5 w-5" />
+                                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-blue-500 text-white">
+                                  <Sparkles className="h-4 w-4" />
                                 </div>
                                 <span className="text-center leading-tight">AI process</span>
                               </button>
