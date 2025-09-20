@@ -43,7 +43,7 @@ import type { LucideIcon } from "lucide-react"
 const navMain: { title: string; url: string; icon: LucideIcon; badge?: string }[] = [
   {
     title: "Overview",
-    url: "/?section=overview",
+    url: "/overview",
     icon: LayoutDashboard,
   },
   {
