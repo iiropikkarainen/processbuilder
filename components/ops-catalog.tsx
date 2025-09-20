@@ -1158,6 +1158,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
   const [newCategoryTitle, setNewCategoryTitle] = useState("")
+  const [showAddCategory, setShowAddCategory] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [editingCategoryTitle, setEditingCategoryTitle] = useState("")
   const [newSopInputs, setNewSopInputs] = useState<
@@ -1239,6 +1240,16 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setData((prev) => [...prev, nextCategory])
     setExpanded((prev) => ({ ...prev, [uniqueId]: true }))
     setNewCategoryTitle("")
+  }
+
+  const handleToggleAddCategory = () => {
+    setShowAddCategory((prev) => {
+      if (prev) {
+        setNewCategoryTitle("")
+      }
+
+      return !prev
+    })
   }
 
   const startEditCategory = (category: Category) => {
@@ -1548,27 +1559,46 @@ ${prompt}`
         {!fullscreen && (
           <div className="space-y-4">
             <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900">Add category</h3>
-                <p className="text-xs text-gray-500">
-                  Group related processes by department or team.
-                </p>
-              </div>
-              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                <Input
-                  value={newCategoryTitle}
-                  onChange={(event) => setNewCategoryTitle(event.target.value)}
-                  placeholder="e.g. Facilities Management"
-                  className="flex-1"
-                />
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Add category</h3>
+                  <p className="text-xs text-gray-500">
+                    Group related processes by department or team.
+                  </p>
+                </div>
                 <button
-                  onClick={handleAddCategory}
-                  disabled={!newCategoryTitle.trim()}
-                  className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  onClick={handleToggleAddCategory}
+                  aria-label="Toggle Add Category"
+                  aria-pressed={showAddCategory}
+                  className={cn(
+                    "rounded-full p-2 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
+                    showAddCategory && "bg-blue-50 text-blue-600 hover:bg-blue-100",
+                  )}
                 >
-                  <Plus className="h-4 w-4" /> Add
+                  <Plus
+                    className={cn("h-4 w-4 transition", showAddCategory && "rotate-45")}
+                  />
                 </button>
               </div>
+              {showAddCategory && (
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={newCategoryTitle}
+                    onChange={(event) => setNewCategoryTitle(event.target.value)}
+                    placeholder="e.g. Facilities Management"
+                    className="flex-1"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={!newCategoryTitle.trim()}
+                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" /> Add
+                  </button>
+                </div>
+              )}
             </div>
 
             {filteredData.map((category) => {
