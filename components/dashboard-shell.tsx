@@ -248,7 +248,7 @@ export function DashboardShell({ children, search, header }: DashboardShellProps
   const HeaderIcon = header?.icon ?? ListChecks
   const headerTitle = header?.title ?? "Operations Catalog"
   const headerDescription =
-    header?.description ?? "Browse SOPs, assign tasks, and orchestrate your processes."
+    header?.description ?? "Browse Processes, assign tasks, and orchestrate your processes."
 
   return (
     <SidebarProvider>
@@ -272,7 +272,7 @@ export function DashboardShell({ children, search, header }: DashboardShellProps
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       className="h-9 w-full pl-9"
-                      placeholder={search.placeholder ?? "Search categories or SOPs…"}
+                      placeholder={search.placeholder ?? "Search categories or Processes…"}
                       type="search"
                       value={search.value}
                       onChange={(event) => search.onChange(event.target.value)}
