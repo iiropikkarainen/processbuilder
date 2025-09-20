@@ -433,6 +433,7 @@ export function ProcessEditor({
     heading2: false,
   })
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const savedSelectionRef = useRef<Range | null>(null)
 
   useEffect(() => {
     const normalized = sanitizeHtml(convertInputToHtml(value))
@@ -522,6 +523,41 @@ export function ProcessEditor({
     }, 600)
   }, [onChange])
 
+  const saveSelection = useCallback(() => {
+    if (typeof window === "undefined") return
+    const editor = editorRef.current
+    if (!editor) return
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+    try {
+      const range = selection.getRangeAt(0)
+      if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+        return
+      }
+      savedSelectionRef.current = range.cloneRange()
+    } catch (error) {
+      return
+    }
+  }, [])
+
+  const restoreSelection = useCallback(() => {
+    if (typeof window === "undefined") return
+    const editor = editorRef.current
+    const range = savedSelectionRef.current
+    if (!editor || !range) return
+    try {
+      if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+        return
+      }
+    } catch (error) {
+      return
+    }
+    const selection = window.getSelection()
+    if (!selection) return
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }, [])
+
   const updateSlashMenu = useCallback(() => {
     if (typeof window === "undefined") return
     const selection = window.getSelection()
@@ -593,16 +629,21 @@ export function ProcessEditor({
     selection.addRange(newRange)
   }, [])
 
-  useSelectionListener(() => {
+  const handleSelectionChange = useCallback(() => {
+    saveSelection()
     updateFormats()
     updateSlashMenu()
-  })
+  }, [saveSelection, updateFormats, updateSlashMenu])
+
+  useSelectionListener(handleSelectionChange)
 
   const applyCommand = useCallback(
     (command: string, value?: string) => {
       if (typeof window === "undefined") return
       if (!editorRef.current) return
+      restoreSelection()
       editorRef.current.focus({ preventScroll: true })
+      restoreSelection()
       const commandValue =
         command === "formatBlock" && value && !value.startsWith("<")
           ? `<${value}>`
@@ -613,7 +654,7 @@ export function ProcessEditor({
         triggerChange()
       }, 0)
     },
-    [triggerChange, updateFormats],
+    [restoreSelection, triggerChange, updateFormats],
   )
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -695,7 +736,9 @@ export function ProcessEditor({
 
   const toggleChecklist = useCallback(() => {
     if (!editorRef.current) return
+    restoreSelection()
     editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     const checklistHtml = `
       <ul class="process-checklist space-y-2 list-none pl-0">
         <li>
@@ -708,11 +751,13 @@ export function ProcessEditor({
     `
     document.execCommand("insertHTML", false, checklistHtml)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const insertCallout = useCallback(() => {
     if (!editorRef.current) return
+    restoreSelection()
     editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     const calloutHtml = `
       <div class="process-callout rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
         <p class="text-sm font-semibold text-blue-700">Callout</p>
@@ -721,22 +766,28 @@ export function ProcessEditor({
     `
     document.execCommand("insertHTML", false, calloutHtml)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const insertDivider = useCallback(() => {
+    if (!editorRef.current) return
+    restoreSelection()
+    editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     document.execCommand("insertHorizontalRule", false)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const insertCodeBlock = useCallback(() => {
     if (!editorRef.current) return
+    restoreSelection()
     editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     const codeBlock = `
       <pre class="process-code-block overflow-x-auto rounded-lg bg-slate-950 px-4 py-3 text-sm text-slate-100"><code>// Document the script or command</code></pre><p><br /></p>
     `
     document.execCommand("insertHTML", false, codeBlock)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const insertQuote = useCallback(() => {
     applyCommand("formatBlock", "blockquote")
@@ -744,7 +795,9 @@ export function ProcessEditor({
 
   const insertAiPrompt = useCallback(() => {
     if (!editorRef.current) return
+    restoreSelection()
     editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     const aiBlock = `
       <div class="process-ai-block rounded-lg border border-dashed border-purple-200 bg-purple-50 px-4 py-3">
         <p class="flex items-center gap-2 text-sm font-semibold text-purple-700"><span>AI Prompt</span></p>
@@ -753,11 +806,13 @@ export function ProcessEditor({
     `
     document.execCommand("insertHTML", false, aiBlock)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const insertProcessLink = useCallback(() => {
     if (!editorRef.current) return
+    restoreSelection()
     editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
     const linkBlock = `
       <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
         <p class="text-sm font-semibold text-gray-900">Linked process</p>
@@ -766,7 +821,7 @@ export function ProcessEditor({
     `
     document.execCommand("insertHTML", false, linkBlock)
     triggerChange()
-  }, [triggerChange])
+  }, [restoreSelection, triggerChange])
 
   const handleLink = () => {
     if (typeof window === "undefined") return
@@ -962,6 +1017,7 @@ export function ProcessEditor({
                         "h-8 min-w-[2rem] px-2 text-xs",
                         action.isActive && "border border-primary/20",
                       )}
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={action.onSelect}
                     >
                       <action.icon className="h-4 w-4" />
