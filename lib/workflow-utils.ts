@@ -1,5 +1,5 @@
 import type { Node, XYPosition } from "reactflow"
-import type { NodeData } from "./types"
+import type { NodeData, ProcessDeadline } from "./types"
 
 let nodeIdCounter = 0
 
@@ -129,4 +129,25 @@ const getDefaultDescription = (type: string): string => {
     default:
       return "Workflow node"
   }
+}
+
+export const deadlinesAreEqual = (
+  a: ProcessDeadline | null,
+  b: ProcessDeadline | null,
+): boolean => {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.type !== b.type) return false
+  if (a.nodeId !== b.nodeId) return false
+  if ((a.nodeLabel ?? "") !== (b.nodeLabel ?? "")) return false
+
+  if (a.type === "absolute" && b.type === "absolute") {
+    return a.value === b.value
+  }
+
+  if (a.type === "relative" && b.type === "relative") {
+    return a.value === b.value && a.unit === b.unit
+  }
+
+  return false
 }

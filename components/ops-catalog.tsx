@@ -56,7 +56,8 @@ import { Textarea } from "@/components/ui/textarea"
 import WorkflowBuilder from "./workflow-builder"
 import { ProcessEditor, extractPlainText } from "./process-editor"
 import { cn } from "@/lib/utils"
-import type { Task } from "@/lib/types"
+import { deadlinesAreEqual } from "@/lib/workflow-utils"
+import type { ProcessDeadline, Task } from "@/lib/types"
 
 type Subcategory = {
   id: string
@@ -66,6 +67,7 @@ type Subcategory = {
 type ProcessSettings = {
   owner: string
   processType: "one-time" | "recurring"
+  oneTimeDeadline: ProcessDeadline | null
   recurrence: {
     frequency: "custom" | "daily" | "weekly" | "monthly" | "quarterly" | "annually"
     customDays: string[]
@@ -187,6 +189,7 @@ Ensure accurate, timely payroll.
         processSettings: {
           owner: "Finance Manager",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "custom",
             customDays: ["monday", "thursday"],
@@ -224,6 +227,7 @@ Welcome and equip new employees.
         processSettings: {
           owner: "HR Lead",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "weekly",
             customDays: [],
@@ -261,6 +265,7 @@ Keep pipeline data clean and forecast accurate.
         processSettings: {
           owner: "Sales Director",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "quarterly",
             customDays: [],
@@ -298,6 +303,7 @@ Ensure urgent cases are resolved quickly.
         processSettings: {
           owner: "Customer Support Lead",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "daily",
             customDays: [],
@@ -335,6 +341,7 @@ Provide secure access to required systems.
         processSettings: {
           owner: "IT Administrator",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "weekly",
             customDays: ["monday"],
@@ -372,6 +379,7 @@ Deliver timely customer communications.
         processSettings: {
           owner: "Marketing Manager",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "weekly",
             customDays: ["wednesday"],
@@ -409,6 +417,7 @@ Keep stock counts accurate for planning.
         processSettings: {
           owner: "Operations Manager",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "monthly",
             customDays: [],
@@ -446,6 +455,7 @@ Coordinate smooth release deployments.
         processSettings: {
           owner: "Product Manager",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "monthly",
             customDays: [],
@@ -483,6 +493,7 @@ Ensure consistent legal risk evaluation.
         processSettings: {
           owner: "Legal Counsel",
           processType: "recurring",
+          oneTimeDeadline: null,
           recurrence: {
             frequency: "weekly",
             customDays: ["tuesday"],
@@ -566,9 +577,10 @@ ${trimmedPrompt}`
 interface ProcessViewProps {
   tasks: Task[]
   setTasks: Dispatch<SetStateAction<Task[]>>
+  onLastProcessDeadlineChange?: (deadline: ProcessDeadline | null) => void
 }
 
-const ProcessView = ({ tasks, setTasks }: ProcessViewProps) => {
+const ProcessView = ({ tasks, setTasks, onLastProcessDeadlineChange }: ProcessViewProps) => {
   const unassignedTasks = useMemo(() => tasks.filter((task) => !task.nodeId), [tasks])
 
   const assignTaskToNode = useCallback(
@@ -632,6 +644,7 @@ const ProcessView = ({ tasks, setTasks }: ProcessViewProps) => {
       onUpdateTaskDueDate={handleDueDateChange}
       onMarkTaskDone={handleMarkDone}
       onCreateTask={handleCreateTask}
+      onLastProcessDeadlineChange={onLastProcessDeadlineChange}
     />
   )
 }
@@ -848,6 +861,52 @@ const ProcessSettingsView = ({ settings, onChange }: ProcessSettingsViewProps) =
     }
   })()
 
+  const deadlineInfo = (() => {
+    const deadline = settings.oneTimeDeadline ?? null
+
+    if (!deadline) {
+      return {
+        summary:
+          "No deadline synced yet. Configure the final process step's deadline to populate this field.",
+        source: null as string | null,
+      }
+    }
+
+    if (deadline.type === "absolute") {
+      let formatted = deadline.value
+      const parsed = new Date(deadline.value)
+      if (!Number.isNaN(parsed.getTime())) {
+        formatted = parsed.toLocaleString(undefined, {
+          dateStyle: "medium",
+          timeStyle: "short",
+        })
+      }
+
+      return {
+        summary: `Due by ${formatted}.`,
+        source: deadline.nodeLabel ?? null,
+      }
+    }
+
+    const rawValue = deadline.value.trim()
+    const displayValue = rawValue || deadline.value
+    const numericValue = Number(rawValue)
+    const isSingular = !Number.isNaN(numericValue) && Math.abs(numericValue) === 1
+    const unitLabel =
+      deadline.unit === "hours"
+        ? isSingular
+          ? "hour"
+          : "hours"
+        : isSingular
+          ? "day"
+          : "days"
+
+    return {
+      summary: `Due ${displayValue} ${unitLabel} after dependencies finish.`,
+      source: deadline.nodeLabel ?? null,
+    }
+  })()
+
   return (
     <div className="space-y-6">
       <section className="space-y-3">
@@ -889,10 +948,22 @@ const ProcessSettingsView = ({ settings, onChange }: ProcessSettingsViewProps) =
             <TabsTrigger value="one-time">One-time process</TabsTrigger>
             <TabsTrigger value="recurring">Recurring process</TabsTrigger>
           </TabsList>
-          <TabsContent value="one-time" className="mt-4">
+          <TabsContent value="one-time" className="mt-4 space-y-4">
             <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
               This process will execute once. Use assignments and due dates in the process view to
               manage work.
+            </div>
+            <div className="space-y-3 rounded-xl border bg-white p-4 shadow-sm">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-gray-900">Deadline</div>
+                <p className="text-xs text-gray-500">
+                  Synced from the final process step&apos;s deadline rules in the Process Designer.
+                </p>
+              </div>
+              <p className="text-sm text-gray-700">{deadlineInfo.summary}</p>
+              {deadlineInfo.source ? (
+                <p className="text-xs text-gray-500">Source step: “{deadlineInfo.source}”</p>
+              ) : null}
             </div>
           </TabsContent>
           <TabsContent value="recurring" className="mt-4">
@@ -1291,6 +1362,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       processSettings: {
         owner,
         processType: "one-time",
+        oneTimeDeadline: null,
         recurrence: {
           frequency: "monthly",
           customDays: [],
@@ -1380,6 +1452,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       processSettings: {
         owner,
         processType: "one-time",
+        oneTimeDeadline: null,
         recurrence: {
           frequency: "monthly",
           customDays: [],
@@ -1499,26 +1572,46 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setEditingSop(null)
   }
 
-  const handleProcessSettingsChange = (settings: ProcessSettings) => {
-    if (!selectedSOP) return
+  const handleProcessSettingsChange = useCallback(
+    (settings: ProcessSettings) => {
+      if (!selectedSOP) return
 
-    setProcessSettings(settings)
+      setProcessSettings(settings)
 
-    setData((prev) =>
-      prev.map((category) => ({
-        ...category,
-        sops: category.sops.map((sop) =>
-          sop.id === selectedSOP.id
-            ? { ...sop, owner: settings.owner, processSettings: settings }
-            : sop,
-        ),
-      })),
-    )
+      setData((prev) =>
+        prev.map((category) => ({
+          ...category,
+          sops: category.sops.map((sop) =>
+            sop.id === selectedSOP.id
+              ? { ...sop, owner: settings.owner, processSettings: settings }
+              : sop,
+          ),
+        })),
+      )
 
-    setSelectedSOP((prev) =>
-      prev ? { ...prev, owner: settings.owner, processSettings: settings } : prev,
-    )
-  }
+      setSelectedSOP((prev) =>
+        prev ? { ...prev, owner: settings.owner, processSettings: settings } : prev,
+      )
+    },
+    [selectedSOP],
+  )
+
+  const handleOneTimeDeadlineUpdate = useCallback(
+    (deadline: ProcessDeadline | null) => {
+      if (!processSettings || !selectedSOP) {
+        return
+      }
+
+      const current = processSettings.oneTimeDeadline ?? null
+      if (deadlinesAreEqual(current, deadline)) {
+        return
+      }
+
+      const nextSettings = { ...processSettings, oneTimeDeadline: deadline }
+      handleProcessSettingsChange(nextSettings)
+    },
+    [processSettings, selectedSOP, handleProcessSettingsChange],
+  )
 
   useEffect(() => {
     if (!selectedSOP) {
@@ -2188,7 +2281,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     viewMode !== "process" && "hidden",
                   )}
                 >
-                  <ProcessView tasks={tasks} setTasks={setTasks} />
+                  <ProcessView
+                    tasks={tasks}
+                    setTasks={setTasks}
+                    onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
+                  />
                 </div>
                 <div
                   className={cn(

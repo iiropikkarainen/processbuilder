@@ -29,9 +29,9 @@ import { OutputNode } from "./nodes/output-node"
 import { ProcessNode } from "./nodes/process-node"
 import { ConditionalNode } from "./nodes/conditional-node"
 import { CodeNode } from "./nodes/code-node"
-import { generateNodeId, createNode } from "@/lib/workflow-utils"
+import { generateNodeId, createNode, deadlinesAreEqual } from "@/lib/workflow-utils"
 import { cn } from "@/lib/utils"
-import type { Task, WorkflowNode, NodeData } from "@/lib/types"
+import type { Task, WorkflowNode, NodeData, ProcessDeadline } from "@/lib/types"
 
 const nodeTypes: NodeTypes = {
   input: InputNode,
@@ -147,6 +147,7 @@ type WorkflowBuilderProps = {
   onCreateTask?: (nodeId: string, text: string) => void
   onUpdateTaskDueDate?: (taskId: number, due: string) => void
   onMarkTaskDone?: (taskId: number) => void
+  onLastProcessDeadlineChange?: (deadline: ProcessDeadline | null) => void
 }
 
 export default function WorkflowBuilder({
@@ -157,12 +158,14 @@ export default function WorkflowBuilder({
   onCreateTask,
   onUpdateTaskDueDate,
   onMarkTaskDone,
+  onLastProcessDeadlineChange,
 }: WorkflowBuilderProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const lastDeadlineRef = useRef<ProcessDeadline | null>(null)
 
   const onConnect = useCallback(
     (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, type: "custom" }, eds)),
@@ -304,6 +307,62 @@ export default function WorkflowBuilder({
       setSelectedNode(updated)
     }
   }, [nodes, selectedNode])
+
+  useEffect(() => {
+    if (!onLastProcessDeadlineChange) {
+      return
+    }
+
+    const processNodes = nodes.filter((node) => node.type === "process")
+    const configuredProcessNodes = processNodes.filter((node) => {
+      const data = node.data ?? {}
+      if (data.deadlineType === "absolute") {
+        return Boolean(data.deadlineAbsolute)
+      }
+
+      if (data.deadlineType === "relative") {
+        return data.deadlineRelativeValue !== undefined && data.deadlineRelativeValue !== ""
+      }
+
+      return false
+    })
+
+    let computedDeadline: ProcessDeadline | null = null
+
+    if (configuredProcessNodes.length > 0) {
+      const sortedNodes = [...configuredProcessNodes].sort(
+        (a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0),
+      )
+      const lastNode = sortedNodes[sortedNodes.length - 1]
+      const data = lastNode.data ?? {}
+
+      if (data.deadlineType === "absolute" && data.deadlineAbsolute) {
+        computedDeadline = {
+          type: "absolute",
+          value: data.deadlineAbsolute,
+          nodeId: lastNode.id,
+          nodeLabel: data.label,
+        }
+      } else if (
+        data.deadlineType === "relative" &&
+        data.deadlineRelativeValue !== undefined &&
+        data.deadlineRelativeValue !== ""
+      ) {
+        computedDeadline = {
+          type: "relative",
+          value: data.deadlineRelativeValue,
+          unit: data.deadlineRelativeUnit === "hours" ? "hours" : "days",
+          nodeId: lastNode.id,
+          nodeLabel: data.label,
+        }
+      }
+    }
+
+    if (!deadlinesAreEqual(lastDeadlineRef.current, computedDeadline)) {
+      lastDeadlineRef.current = computedDeadline
+      onLastProcessDeadlineChange(computedDeadline)
+    }
+  }, [nodes, onLastProcessDeadlineChange])
 
   const saveWorkflow = () => {
     if (nodes.length === 0) {

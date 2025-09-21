@@ -10,6 +10,21 @@ export interface Task {
   nodeId: string | null
 }
 
+export type ProcessDeadline =
+  | {
+      type: "relative"
+      value: string
+      unit: "hours" | "days"
+      nodeId: string
+      nodeLabel?: string
+    }
+  | {
+      type: "absolute"
+      value: string
+      nodeId: string
+      nodeLabel?: string
+    }
+
 export interface NodeData {
   label: string
   description?: string
