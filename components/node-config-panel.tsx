@@ -13,7 +13,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useReactFlow } from "reactflow"
 import type { WorkflowNode } from "@/lib/types"
 import CodeEditor from "./code-editor"
-import { NodeTaskList } from "./nodes/node-task-list"
 
 interface NodeConfigPanelProps {
   node: WorkflowNode
@@ -385,13 +384,14 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
               <div className="space-y-2">
                 <Label htmlFor="outputRequirementType">Output requirements</Label>
                 <Select
-                  value={localData.outputRequirementType || "text"}
+                  value={localData.outputRequirementType || "markDone"}
                   onValueChange={(value) => handleChange("outputRequirementType", value)}
                 >
                   <SelectTrigger id="outputRequirementType">
                     <SelectValue placeholder="Select output type" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="markDone">Mark as done</SelectItem>
                     <SelectItem value="file">File upload</SelectItem>
                     <SelectItem value="link">Link or URL</SelectItem>
                     <SelectItem value="text">Text / form response</SelectItem>
@@ -505,11 +505,6 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
     }
   }
 
-  const hasTaskManagement =
-    (node.data.tasks?.length ?? 0) > 0 ||
-    (node.data.availableTasks?.length ?? 0) > 0 ||
-    Boolean(node.data.createTask)
-
   return (
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
@@ -543,26 +538,6 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
           />
           <Label htmlFor="required">Required Node</Label>
         </div>
-
-        {hasTaskManagement ? (
-          <div>
-            <p className="text-xs text-gray-500">
-              Manage this node&apos;s checklist, set due dates, and mark work complete without leaving the
-              configuration view.
-            </p>
-
-            <NodeTaskList
-              nodeId={node.id}
-              tasks={node.data.tasks ?? []}
-              availableTasks={node.data.availableTasks}
-              onAddTask={node.data.createTask}
-              onAttachTask={node.data.assignTask}
-              onDueDateChange={node.data.updateTaskDueDate}
-              onMarkDone={node.data.markTaskDone}
-              className="mt-2"
-            />
-          </div>
-        ) : null}
 
         <div className="border-t border-gray-200 my-4"></div>
 

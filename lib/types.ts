@@ -39,7 +39,7 @@ export interface NodeData {
   reminderEnabled?: boolean
   reminderLeadTime?: string
   reminderLeadTimeUnit?: "hours" | "days"
-  outputRequirementType?: "file" | "link" | "text"
+  outputRequirementType?: "markDone" | "file" | "link" | "text"
   outputStructuredDataTemplate?: string
   validationRequireOutput?: boolean
   validationNotes?: string
