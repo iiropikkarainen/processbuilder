@@ -67,7 +67,7 @@ export const createNode = ({
           reminderEnabled: false,
           reminderLeadTime: "",
           reminderLeadTimeUnit: "hours",
-          outputRequirementType: "text",
+          outputRequirementType: "markDone",
           outputStructuredDataTemplate: "",
           validationRequireOutput: false,
           validationNotes: "",
