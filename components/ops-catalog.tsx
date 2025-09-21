@@ -57,7 +57,13 @@ import WorkflowBuilder from "./workflow-builder"
 import { ProcessEditor, extractPlainText } from "./process-editor"
 import { cn } from "@/lib/utils"
 import { deadlinesAreEqual } from "@/lib/workflow-utils"
-import type { ProcessDeadline, Task } from "@/lib/types"
+import type {
+  ProcessDeadline,
+  Task,
+  Workflow,
+  WorkflowNode,
+  NodeData,
+} from "@/lib/types"
 
 type Subcategory = {
   id: string
@@ -578,9 +584,15 @@ interface ProcessViewProps {
   tasks: Task[]
   setTasks: Dispatch<SetStateAction<Task[]>>
   onLastProcessDeadlineChange?: (deadline: ProcessDeadline | null) => void
+  onWorkflowUpdate?: (workflow: Workflow) => void
 }
 
-const ProcessView = ({ tasks, setTasks, onLastProcessDeadlineChange }: ProcessViewProps) => {
+const ProcessView = ({
+  tasks,
+  setTasks,
+  onLastProcessDeadlineChange,
+  onWorkflowUpdate,
+}: ProcessViewProps) => {
   const unassignedTasks = useMemo(() => tasks.filter((task) => !task.nodeId), [tasks])
 
   const assignTaskToNode = useCallback(
@@ -645,95 +657,622 @@ const ProcessView = ({ tasks, setTasks, onLastProcessDeadlineChange }: ProcessVi
       onMarkTaskDone={handleMarkDone}
       onCreateTask={handleCreateTask}
       onLastProcessDeadlineChange={onLastProcessDeadlineChange}
+      onWorkflowUpdate={onWorkflowUpdate}
     />
   )
 }
 
-interface CalendarViewProps {
-  tasks: Task[]
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+type DeadlineInfo = { label: string; absoluteDate: Date | null }
+type AssignmentInfo = { label: string; notes: string[] }
+type OutputRequirementInfo = { label: string; notes: string[] }
+
+const parseDateValue = (value?: string | null): Date | null => {
+  if (!value) return null
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return null
+  }
+
+  return parsed
 }
 
-const CalendarView = ({ tasks }: CalendarViewProps) => {
+const formatDateTime = (date: Date): string =>
+  date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+
+const getDeadlineInfo = (data?: NodeData | null): DeadlineInfo => {
+  if (!data) {
+    return { label: "—", absoluteDate: null }
+  }
+
+  if (data.deadlineType === "absolute" && data.deadlineAbsolute) {
+    const parsed = parseDateValue(data.deadlineAbsolute)
+    if (parsed) {
+      return { label: formatDateTime(parsed), absoluteDate: parsed }
+    }
+
+    return { label: data.deadlineAbsolute, absoluteDate: null }
+  }
+
+  if (data.deadlineType === "relative" && data.deadlineRelativeValue) {
+    const unit = data.deadlineRelativeUnit === "hours" ? "hours" : "days"
+    return { label: `+${data.deadlineRelativeValue} ${unit}`, absoluteDate: null }
+  }
+
+  return { label: "—", absoluteDate: null }
+}
+
+const getAssignmentInfo = (data?: NodeData | null): AssignmentInfo => {
+  if (!data) {
+    return { label: "Unassigned", notes: ["Assign a processor in the Process Designer."] }
+  }
+
+  const baseLabel =
+    data.assignmentType === "role"
+      ? data.assignedRole?.trim()
+      : data.assignedProcessor?.trim()
+
+  const notes: string[] = []
+
+  if (data.allowReassignment) {
+    notes.push("Reassignment allowed")
+  }
+
+  if (data.approver) {
+    notes.push(`Approver: ${data.approver}`)
+  }
+
+  if (!baseLabel) {
+    notes.push("Assign a processor in the Process Designer.")
+  }
+
+  return { label: baseLabel || "Unassigned", notes }
+}
+
+const getOutputRequirementInfo = (data?: NodeData | null): OutputRequirementInfo => {
+  const requirementMap: Record<NodeData["outputRequirementType"] | undefined, string> = {
+    markDone: "Mark step complete",
+    file: "Upload supporting file",
+    link: "Provide link or URL",
+    text: "Submit text update",
+    undefined: "Mark step complete",
+  }
+
+  const label = requirementMap[data?.outputRequirementType]
+  const notes: string[] = []
+
+  if (data?.outputStructuredDataTemplate) {
+    notes.push("Structured data template provided")
+  }
+
+  if (data?.validationRequireOutput) {
+    notes.push("Requires validation")
+  }
+
+  if (data?.validationNotes) {
+    notes.push(data.validationNotes)
+  }
+
+  return { label, notes }
+}
+
+const buildCompletionLog = (tasks: Task[]): string[] =>
+  tasks
+    .filter((task) => task.completed && task.completedAt)
+    .map((task) => {
+      const parsed = parseDateValue(task.completedAt)
+      const dateLabel = parsed ? formatDateTime(parsed) : task.completedAt ?? ""
+      const actor = task.completedBy || "Unknown processor"
+      return `${actor} • ${dateLabel}`
+    })
+
+interface CalendarViewProps {
+  tasks: Task[]
+  workflow: Workflow | null
+  processName: string
+}
+
+type CalendarEntry = {
+  id: string
+  task: Task | null
+  node: WorkflowNode | null
+  dueDate: Date
+}
+
+const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
+  const workflowNodes = workflow?.nodes ?? []
+
+  const processNodes = useMemo(
+    () => workflowNodes.filter((node) => node.type === "process"),
+    [workflowNodes],
+  )
+  const inputNodes = useMemo(
+    () => workflowNodes.filter((node) => node.type === "input"),
+    [workflowNodes],
+  )
+  const outputNodes = useMemo(
+    () => workflowNodes.filter((node) => node.type === "output"),
+    [workflowNodes],
+  )
+
+  const tasksByNode = useMemo(() => {
+    const map = new Map<string, Task[]>()
+
+    tasks.forEach((task) => {
+      if (!task.nodeId) return
+      const current = map.get(task.nodeId) ?? []
+      current.push(task)
+      map.set(task.nodeId, current)
+    })
+
+    return map
+  }, [tasks])
+
+  const calendarEntries = useMemo(() => {
+    const entries: CalendarEntry[] = []
+    const processNodesById = new Map(processNodes.map((node) => [node.id, node]))
+
+    tasks.forEach((task) => {
+      const node = task.nodeId ? processNodesById.get(task.nodeId) ?? null : null
+      let dueDate = parseDateValue(task.due)
+
+      if (!dueDate && node) {
+        const { absoluteDate } = getDeadlineInfo(node.data as NodeData)
+        dueDate = absoluteDate
+      }
+
+      if (dueDate) {
+        entries.push({
+          id: `task-${task.id}-${dueDate.getTime()}`,
+          task,
+          node,
+          dueDate,
+        })
+      }
+    })
+
+    processNodes.forEach((node) => {
+      const { absoluteDate } = getDeadlineInfo(node.data as NodeData)
+      if (!absoluteDate) return
+
+      const alreadyIncluded = entries.some(
+        (entry) => entry.node?.id === node.id && entry.dueDate.getTime() === absoluteDate.getTime(),
+      )
+
+      if (!alreadyIncluded) {
+        entries.push({
+          id: `node-${node.id}-${absoluteDate.getTime()}`,
+          task: null,
+          node,
+          dueDate: absoluteDate,
+        })
+      }
+    })
+
+    return entries.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+  }, [tasks, processNodes])
+
+  const entriesForMonth = useMemo(
+    () =>
+      calendarEntries.filter(
+        (entry) =>
+          entry.dueDate.getFullYear() === currentMonth.getFullYear() &&
+          entry.dueDate.getMonth() === currentMonth.getMonth(),
+      ),
+    [calendarEntries, currentMonth],
+  )
+
+  useEffect(() => {
+    if (entriesForMonth.length === 0) {
+      setSelectedDate(null)
+      return
+    }
+
+    if (
+      !selectedDate ||
+      selectedDate.getFullYear() !== currentMonth.getFullYear() ||
+      selectedDate.getMonth() !== currentMonth.getMonth()
+    ) {
+      setSelectedDate(entriesForMonth[0].dueDate)
+    }
+  }, [entriesForMonth, selectedDate, currentMonth])
+
+  const tasksByDate = useMemo(() => {
+    return entriesForMonth.reduce<Record<string, CalendarEntry[]>>((acc, entry) => {
+      const key = entry.dueDate.toDateString()
+      if (!acc[key]) {
+        acc[key] = []
+      }
+      acc[key].push(entry)
+      return acc
+    }, {})
+  }, [entriesForMonth])
+
+  const selectedEntries = selectedDate
+    ? tasksByDate[selectedDate.toDateString()] ?? []
+    : []
+
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-  const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
-  const daysInMonth = endOfMonth.getDate()
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()
+  const startWeekday = startOfMonth.getDay()
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7
 
   const prevMonth = () =>
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
   const nextMonth = () =>
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
 
-  const tasksByDate = tasks.reduce<Record<string, Task[]>>((acc, task) => {
-    if (task.due) {
-      const dateKey = new Date(task.due).toDateString()
-      if (!acc[dateKey]) acc[dateKey] = []
-      acc[dateKey].push(task)
-    }
-    return acc
-  }, {})
+  const primaryInput = inputNodes[0]?.data as NodeData | undefined
+  const primaryOutput = outputNodes[0]?.data as NodeData | undefined
 
-  const renderDay = (day: number) => {
-    const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
-    const dateKey = dateObj.toDateString()
-    const hasTasks = tasksByDate[dateKey]
+  const inputLabel = primaryInput?.label || "Input"
+  const inputDescription =
+    primaryInput?.description ||
+    "Add an input node in the Process Designer to describe what processors receive."
+  const inputSourceNote = primaryInput?.dataSource
+    ? `Source: ${primaryInput.dataSource}`
+    : null
 
-    return (
-      <div
-        key={day}
-        onClick={() => setSelectedDate(dateObj)}
-        className={cn(
-          "flex cursor-pointer flex-col rounded-lg border p-2 hover:bg-gray-100",
-          selectedDate?.toDateString() === dateKey && "bg-blue-100",
-        )}
-      >
-        <div className="text-sm font-semibold">{day}</div>
-        {hasTasks && (
-          <div className="mt-1 text-xs text-blue-600">
-            {hasTasks.length} task{hasTasks.length > 1 ? "s" : ""}
-          </div>
-        )}
-      </div>
-    )
-  }
+  const outputLabel = primaryOutput?.label || "Output"
+  const outputDescription =
+    primaryOutput?.description ||
+    "Add an output node to capture the expected deliverable for this process."
+  const outputFormatNote = primaryOutput?.outputType
+    ? `Output: ${primaryOutput.outputType}${
+        primaryOutput.outputFormat ? ` (${primaryOutput.outputFormat})` : ""
+      }`
+    : null
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button onClick={prevMonth} className="rounded border px-2 py-1 hover:bg-gray-100">
-          Prev
-        </button>
-        <div className="font-semibold">
-          {currentMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+    <div className="space-y-6">
+      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Processor schedule</h3>
+            <p className="text-sm text-gray-500">
+              {processName
+                ? `Due dates for ${processName}`
+                : "Select a process to review upcoming work."}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Prev
+            </button>
+            <div className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-semibold text-gray-900">
+              {currentMonth.toLocaleString("default", { month: "long", year: "numeric" })}
+            </div>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="rounded-lg border border-gray-200 px-3 py-1 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
         </div>
-        <button onClick={nextMonth} className="rounded border px-2 py-1 hover:bg-gray-100">
-          Next
-        </button>
-      </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {Array.from({ length: daysInMonth }, (_, index) => renderDay(index + 1))}
-      </div>
+        <div className="mt-6 grid grid-cols-7 gap-2 text-center text-xs font-medium uppercase tracking-wide text-gray-500">
+          {WEEKDAY_LABELS.map((day) => (
+            <div key={day}>{day}</div>
+          ))}
+        </div>
 
-      {selectedDate && (
-        <div>
-          <div className="mb-2 font-medium">Tasks for {selectedDate.toDateString()}</div>
-          {tasksByDate[selectedDate.toDateString()] ? (
-            tasksByDate[selectedDate.toDateString()].map((task) => (
-              <div key={task.id} className="mb-2 rounded border bg-white p-2 shadow-sm">
-                <div className="text-sm font-medium">{task.text}</div>
-                <div className="text-xs text-gray-500">
-                  Due: {new Date(task.due).toLocaleString()}
+        <div className="mt-2 grid grid-cols-7 gap-2">
+          {Array.from({ length: totalCells }).map((_, index) => {
+            const dayNumber = index - startWeekday + 1
+            if (dayNumber < 1 || dayNumber > daysInMonth) {
+              return (
+                <div
+                  key={`empty-${index}`}
+                  className="h-20 rounded-lg border border-dashed border-transparent"
+                />
+              )
+            }
+
+            const dateObj = new Date(
+              currentMonth.getFullYear(),
+              currentMonth.getMonth(),
+              dayNumber,
+            )
+            const dateKey = dateObj.toDateString()
+            const entriesForDay = tasksByDate[dateKey] ?? []
+            const isSelected = selectedDate?.toDateString() === dateKey
+
+            return (
+              <button
+                type="button"
+                key={dateKey}
+                onClick={() => setSelectedDate(dateObj)}
+                className={cn(
+                  "flex h-20 flex-col rounded-lg border bg-white p-2 text-left transition",
+                  entriesForDay.length > 0
+                    ? "border-blue-200 hover:border-blue-300 hover:bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300",
+                  isSelected && "ring-2 ring-blue-500",
+                )}
+              >
+                <div className="text-sm font-semibold text-gray-900">{dayNumber}</div>
+                <div className="mt-auto space-y-1">
+                  {entriesForDay.slice(0, 2).map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="truncate rounded bg-blue-100 px-1 py-0.5 text-[10px] font-medium text-blue-700"
+                    >
+                      {entry.node?.data?.label ?? entry.task?.text ?? "Task"}
+                    </div>
+                  ))}
+                  {entriesForDay.length > 2 ? (
+                    <div className="text-[10px] text-blue-600">
+                      +{entriesForDay.length - 2} more
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ))
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="mt-6">
+          <div className="text-sm font-semibold text-gray-700">
+            {selectedDate
+              ? `Tasks for ${selectedDate.toLocaleDateString(undefined, { dateStyle: "long" })}`
+              : "Tasks"}
+          </div>
+
+          {selectedEntries.length > 0 ? (
+            <div className="mt-3 space-y-3">
+              {selectedEntries.map((entry) => {
+                const nodeData = entry.node?.data as NodeData | undefined
+                const assignmentInfo = getAssignmentInfo(nodeData)
+                const outputInfo = getOutputRequirementInfo(nodeData)
+                const deadlineInfo = getDeadlineInfo(nodeData)
+                const taskDueDate = parseDateValue(entry.task?.due)
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {entry.node?.data?.label || entry.task?.text || "Process step"}
+                        </div>
+                        {entry.node?.data?.description ? (
+                          <div className="mt-1 text-xs text-gray-500">
+                            {entry.node.data.description}
+                          </div>
+                        ) : null}
+                      </div>
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-xs font-medium",
+                          entry.task?.completed
+                            ? "bg-green-100 text-green-700"
+                            : "bg-yellow-100 text-yellow-700",
+                        )}
+                      >
+                        {entry.task?.completed ? "Completed" : "Pending"}
+                      </span>
+                    </div>
+
+                    <dl className="mt-3 grid gap-3 text-xs text-gray-600 sm:grid-cols-2">
+                      <div>
+                        <dt className="font-medium uppercase tracking-wide text-gray-500">
+                          Due
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900">
+                          {taskDueDate
+                            ? formatDateTime(taskDueDate)
+                            : deadlineInfo.label}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium uppercase tracking-wide text-gray-500">
+                          Assignment
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900">{assignmentInfo.label}</dd>
+                        {assignmentInfo.notes.map((note, index) => (
+                          <div key={index} className="mt-1 text-xs text-gray-500">
+                            {note}
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <dt className="font-medium uppercase tracking-wide text-gray-500">
+                          Output requirement
+                        </dt>
+                        <dd className="mt-1 text-sm text-gray-900">{outputInfo.label}</dd>
+                        {outputInfo.notes.map((note, index) => (
+                          <div key={index} className="mt-1 text-xs text-gray-500">
+                            {note}
+                          </div>
+                        ))}
+                      </div>
+                    </dl>
+
+                    {entry.task?.completed && entry.task.completedAt ? (
+                      <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        Completed by {entry.task.completedBy || "Unknown processor"} on{" "}
+                        {(() => {
+                          const parsed = parseDateValue(entry.task?.completedAt)
+                          return parsed ? formatDateTime(parsed) : entry.task?.completedAt
+                        })()}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
           ) : (
-            <div className="text-sm text-gray-500">No tasks scheduled.</div>
+            <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+              No tasks scheduled for this day.
+            </div>
           )}
         </div>
-      )}
+      </div>
+
+      <div className="rounded-2xl border bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              Process
+            </div>
+            <div className="text-xl font-bold text-gray-900">
+              {processName || "Select a process"}
+            </div>
+          </div>
+          <div className="text-xs text-gray-500">
+            View the same configuration shown in the Process Designer.
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {inputLabel}
+            </div>
+            <p className="mt-1 text-sm text-gray-700">{inputDescription}</p>
+            {inputSourceNote ? (
+              <p className="mt-1 text-xs text-gray-500">{inputSourceNote}</p>
+            ) : null}
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+              {outputLabel}
+            </div>
+            <p className="mt-1 text-sm text-gray-700">{outputDescription}</p>
+            {outputFormatNote ? (
+              <p className="mt-1 text-xs text-gray-500">{outputFormatNote}</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="text-sm font-semibold text-gray-700">
+            Process nodes and task expectations
+          </div>
+
+          {processNodes.length > 0 ? (
+            <div className="mt-3 overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Process node
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Deadline
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Output requirement
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Assignment
+                    </th>
+                    <th scope="col" className="px-4 py-3 font-medium">
+                      Completion log
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {processNodes.map((node) => {
+                    const nodeData = node.data as NodeData | undefined
+                    const nodeTasks = tasksByNode.get(node.id) ?? []
+                    const deadlineInfo = getDeadlineInfo(nodeData)
+                    const assignmentInfo = getAssignmentInfo(nodeData)
+                    const outputInfo = getOutputRequirementInfo(nodeData)
+                    const completionLog = buildCompletionLog(nodeTasks)
+
+                    return (
+                      <tr key={node.id} className="align-top">
+                        <td className="px-4 py-4">
+                          <div className="font-medium text-gray-900">
+                            {node.data?.label || "Process step"}
+                          </div>
+                          {node.data?.description ? (
+                            <div className="mt-1 text-xs text-gray-500">
+                              {node.data.description}
+                            </div>
+                          ) : null}
+                          {nodeTasks.length > 0 ? (
+                            <ul className="mt-2 space-y-1 text-xs text-gray-600">
+                              {nodeTasks.map((task) => (
+                                <li key={task.id} className="leading-snug">
+                                  • {task.text}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          <div>{deadlineInfo.label}</div>
+                          {nodeTasks.some((task) => task.due) ? (
+                            <div className="mt-2 space-y-1 text-xs text-gray-500">
+                              {nodeTasks
+                                .filter((task) => task.due)
+                                .map((task) => {
+                                  const parsed = parseDateValue(task.due)
+                                  const label = parsed ? formatDateTime(parsed) : task.due
+                                  return (
+                                    <div key={`due-${task.id}`}>Task due: {label}</div>
+                                  )
+                                })}
+                            </div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          <div>{outputInfo.label}</div>
+                          {outputInfo.notes.map((note, index) => (
+                            <div key={index} className="text-xs text-gray-500">
+                              {note}
+                            </div>
+                          ))}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          <div>{assignmentInfo.label}</div>
+                          {assignmentInfo.notes.map((note, index) => (
+                            <div key={index} className="text-xs text-gray-500">
+                              {note}
+                            </div>
+                          ))}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-700">
+                          {completionLog.length > 0 ? (
+                            <ul className="space-y-1 text-xs text-gray-600">
+                              {completionLog.map((log, index) => (
+                                <li key={index}>{log}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-xs text-gray-500">
+                              No completions recorded yet.
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
+              Configure process nodes in the Process Designer to populate the Processor Portal.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1140,6 +1679,10 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   )
   const [tasks, setTasks] = useState<Task[]>([])
   const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
+  const [currentWorkflow, setCurrentWorkflow] = useState<Workflow | null>(null)
+  const handleWorkflowUpdate = useCallback((workflow: Workflow) => {
+    setCurrentWorkflow(workflow)
+  }, [])
   const [newCategoryTitle, setNewCategoryTitle] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -1617,6 +2160,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     if (!selectedSOP) {
       setTasks([])
       setProcessSettings(null)
+      setCurrentWorkflow(null)
       return
     }
 
@@ -1635,6 +2179,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     setTasks(steps)
     setProcessSettings(selectedSOP.processSettings)
+    setCurrentWorkflow(null)
   }, [selectedSOP])
 
   const filteredData = filterData(data, query)
@@ -2285,6 +2830,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     tasks={tasks}
                     setTasks={setTasks}
                     onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
+                    onWorkflowUpdate={handleWorkflowUpdate}
                   />
                 </div>
                 <div
@@ -2293,7 +2839,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     viewMode !== "calendar" && "hidden",
                   )}
                 >
-                  <CalendarView tasks={tasks} />
+                  <CalendarView
+                    tasks={tasks}
+                    workflow={currentWorkflow}
+                    processName={selectedSOP?.title ?? ""}
+                  />
                 </div>
                 <div
                   className={cn(
