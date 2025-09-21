@@ -91,8 +91,39 @@
   }
   [contenteditable]:focus,
   [contenteditable]:focus-visible {
-    outline: none;
-    box-shadow: none;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .process-editor-content,
+  .process-editor-content:focus,
+  .process-editor-content:focus-visible,
+  .process-editor-content:focus-within {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+  }
+  .process-editor-content *:focus {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .process-editor-content h1 {
+    @apply text-2xl font-bold leading-tight tracking-tight;
+  }
+  .process-editor-content h2 {
+    @apply text-xl font-semibold leading-snug;
+  }
+  .process-editor-content ol {
+    @apply list-decimal space-y-2 pl-6;
+  }
+  .process-editor-content ul:not(.process-checklist) {
+    @apply list-disc space-y-2 pl-6;
+  }
+  .process-editor-content ol li,
+  .process-editor-content ul li {
+    @apply pl-1;
+  }
+  .process-editor-content blockquote {
+    @apply border-l-4 border-border/60 bg-muted/40 px-4 py-3 italic text-muted-foreground;
   }
   [data-nextjs-dev-tools-button],
   [data-next-badge],
