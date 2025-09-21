@@ -1680,9 +1680,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
   const [currentWorkflow, setCurrentWorkflow] = useState<Workflow | null>(null)
+
   const handleWorkflowUpdate = useCallback((workflow: Workflow) => {
     setCurrentWorkflow(workflow)
   }, [])
+
   const [newCategoryTitle, setNewCategoryTitle] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
@@ -1703,6 +1705,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [editingSop, setEditingSop] = useState<
     { id: string; categoryId: string; title: string; owner: string } | null
   >(null)
+
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -2827,12 +2830,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                   )}
                 >
                   <ProcessView
-                    tasks={tasks}
-                    setTasks={setTasks}
-                    onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
-                    onWorkflowUpdate={handleWorkflowUpdate}
-                  />
-                </div>
+  tasks={tasks}
+  setTasks={setTasks}
+  onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
+  onWorkflowUpdate={handleWorkflowUpdate}
+/>
                 <div
                   className={cn(
                     "flex h-full flex-col overflow-y-auto p-4",
