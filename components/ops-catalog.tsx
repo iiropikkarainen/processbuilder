@@ -2830,11 +2830,12 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                   )}
                 >
                   <ProcessView
-  tasks={tasks}
-  setTasks={setTasks}
-  onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
-  onWorkflowUpdate={handleWorkflowUpdate}
-/>
+                    tasks={tasks}
+                    setTasks={setTasks}
+                    onLastProcessDeadlineChange={handleOneTimeDeadlineUpdate}
+                    onWorkflowUpdate={handleWorkflowUpdate}
+                  />
+                </div>
                 <div
                   className={cn(
                     "flex h-full flex-col overflow-y-auto p-4",
