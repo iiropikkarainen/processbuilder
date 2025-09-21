@@ -76,47 +76,260 @@ function sanitizeHtml(value: string) {
     .replace(/javascript:/gi, "")
 }
 
-function splitSelectionLines(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\u00a0/g, " ").trim())
-    .filter((line) => line.length > 0)
-}
-
-function stripHeadingMarkers(line: string) {
-  return line.replace(/^#{1,6}\s*/, "").trim()
-}
-
-function stripQuoteMarker(line: string) {
-  return line.replace(/^>\s?/, "").trim()
-}
-
-function stripListMarkers(line: string) {
-  return line
-    .replace(/^([-*+])\s+/, "")
-    .replace(/^(\d+)([.)])\s+/, "")
-    .replace(/^[a-zA-Z]([.)])\s+/, "")
-    .replace(/^\(?(\d+)\)?\s+/, "")
-    .trim()
-}
-
-function parseChecklistLine(line: string) {
-  const match = line.match(/^[-*+]?\s*\[(\s|x|X)\]\s*(.*)$/)
-  if (match) {
-    return {
-      text: match[2]?.trim() ?? "",
-      checked: match[1]?.toLowerCase() === "x",
-    }
-  }
-  return {
-    text: stripListMarkers(line),
-    checked: false,
-  }
-}
-
 type ListContext = {
   type: "ol" | "ul"
   index: number
+}
+
+type SelectionDetails = {
+  text: string
+  html: string
+  isCollapsed: boolean
+}
+
+const BLOCK_ELEMENT_TAGS = new Set([
+  "p",
+  "div",
+  "section",
+  "article",
+  "blockquote",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "ul",
+  "ol",
+  "li",
+])
+
+function fragmentToHtml(fragment: DocumentFragment) {
+  const wrapper = document.createElement("div")
+  const clone = fragment.cloneNode(true)
+  wrapper.appendChild(clone)
+  return wrapper.innerHTML
+}
+
+function collectLineFragments(nodes: ChildNode[]): DocumentFragment[] {
+  const fragments: DocumentFragment[] = []
+  let current = document.createDocumentFragment()
+
+  const flush = () => {
+    if (current.childNodes.length > 0) {
+      fragments.push(current)
+      current = document.createDocumentFragment()
+    }
+  }
+
+  nodes.forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as HTMLElement
+      const tag = element.tagName.toLowerCase()
+      if (tag === "br") {
+        flush()
+        return
+      }
+      if (BLOCK_ELEMENT_TAGS.has(tag)) {
+        flush()
+        const innerNodes = Array.from(element.childNodes)
+        const innerFragments = collectLineFragments(innerNodes)
+        if (innerFragments.length > 0) {
+          fragments.push(...innerFragments)
+        } else {
+          fragments.push(document.createDocumentFragment())
+        }
+        flush()
+        return
+      }
+    }
+    current.appendChild(node.cloneNode(true))
+  })
+
+  flush()
+  return fragments
+}
+
+function getLineFragmentsFromHtml(html: string) {
+  const container = document.createElement("div")
+  container.innerHTML = html
+  return collectLineFragments(Array.from(container.childNodes))
+}
+
+function trimNodeWhitespace(node: Node, direction: "start" | "end") {
+  let child = direction === "start" ? node.firstChild : node.lastChild
+
+  while (child) {
+    const next = direction === "start" ? child.nextSibling : child.previousSibling
+
+    if (child.nodeType === Node.TEXT_NODE) {
+      const textNode = child as Text
+      const text = textNode.textContent ?? ""
+      const trimmed =
+        direction === "start"
+          ? text.replace(/^[\s\u00a0]+/, "")
+          : text.replace(/[\s\u00a0]+$/, "")
+
+      if (trimmed.length === 0) {
+        if (text.length === 0) {
+          node.removeChild(textNode)
+        } else {
+          textNode.textContent = ""
+          node.removeChild(textNode)
+        }
+        child = next
+        continue
+      }
+
+      if (trimmed !== text) {
+        textNode.textContent = trimmed
+      }
+      break
+    }
+
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      trimNodeWhitespace(child, direction)
+      if (child.childNodes.length === 0) {
+        node.removeChild(child)
+        child = next
+        continue
+      }
+      break
+    }
+
+    node.removeChild(child)
+    child = next
+  }
+}
+
+function trimFragmentWhitespace(fragment: DocumentFragment) {
+  trimNodeWhitespace(fragment, "start")
+  trimNodeWhitespace(fragment, "end")
+}
+
+function removeLeadingCharacters(fragment: DocumentFragment, count: number) {
+  if (count <= 0) return
+
+  const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT)
+  let remaining = count
+  const emptyNodes: Text[] = []
+
+  while (walker.nextNode() && remaining > 0) {
+    const textNode = walker.currentNode as Text
+    const text = textNode.textContent ?? ""
+
+    if (text.length === 0) {
+      emptyNodes.push(textNode)
+      continue
+    }
+
+    if (text.length <= remaining) {
+      remaining -= text.length
+      textNode.textContent = ""
+      emptyNodes.push(textNode)
+    } else {
+      textNode.textContent = text.slice(remaining)
+      remaining = 0
+    }
+  }
+
+  emptyNodes.forEach((node) => {
+    if (!node.textContent) {
+      node.parentNode?.removeChild(node)
+    }
+  })
+}
+
+function fragmentHasContent(fragment: DocumentFragment) {
+  const text = fragment.textContent ?? ""
+  return text.replace(/\u00a0/g, " ").trim().length > 0
+}
+
+function getListMarkerLength(text: string) {
+  const patterns = [
+    /^([-*+])\s+/, 
+    /^(\d+)([.)])\s+/, 
+    /^[a-zA-Z]([.)])\s+/, 
+    /^\(?(\d+)\)?\s+/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match) {
+      return match[0].length
+    }
+  }
+
+  return 0
+}
+
+function sanitizeHeadingFragment(fragment: DocumentFragment) {
+  trimFragmentWhitespace(fragment)
+  const initialText = fragment.textContent ?? ""
+  const normalized = initialText.replace(/\u00a0/g, " ")
+  const match = normalized.match(/^#{1,6}\s*/)
+  if (match) {
+    removeLeadingCharacters(fragment, match[0].length)
+  }
+  trimFragmentWhitespace(fragment)
+  return fragmentHasContent(fragment) ? fragment : null
+}
+
+function sanitizeListItemFragment(fragment: DocumentFragment) {
+  trimFragmentWhitespace(fragment)
+  let normalized = (fragment.textContent ?? "").replace(/\u00a0/g, " ")
+  if (!normalized.trim()) {
+    return null
+  }
+  const markerLength = getListMarkerLength(normalized.trimStart())
+  if (markerLength > 0) {
+    const leadingWhitespace = normalized.length - normalized.trimStart().length
+    removeLeadingCharacters(fragment, leadingWhitespace + markerLength)
+  }
+  trimFragmentWhitespace(fragment)
+  normalized = (fragment.textContent ?? "").replace(/\u00a0/g, " ")
+  return normalized.trim() ? fragment : null
+}
+
+function sanitizeChecklistFragment(fragment: DocumentFragment) {
+  trimFragmentWhitespace(fragment)
+  let normalized = (fragment.textContent ?? "").replace(/\u00a0/g, " ")
+  if (!normalized.trim()) {
+    return null
+  }
+  const trimmedStart = normalized.trimStart()
+  const checklistMatch = trimmedStart.match(/^[-*+]?\s*\[(\s|x|X)\]\s*/)
+  let checked = false
+  if (checklistMatch) {
+    checked = (checklistMatch[1] ?? "").toLowerCase() === "x"
+    const leadingWhitespace = normalized.length - trimmedStart.length
+    removeLeadingCharacters(fragment, leadingWhitespace + checklistMatch[0].length)
+  } else {
+    const markerLength = getListMarkerLength(trimmedStart)
+    if (markerLength > 0) {
+      const leadingWhitespace = normalized.length - trimmedStart.length
+      removeLeadingCharacters(fragment, leadingWhitespace + markerLength)
+    }
+  }
+  trimFragmentWhitespace(fragment)
+  normalized = (fragment.textContent ?? "").replace(/\u00a0/g, " ")
+  if (!normalized.trim()) {
+    return null
+  }
+  return { fragment, checked }
+}
+
+function sanitizeQuoteFragment(fragment: DocumentFragment) {
+  trimFragmentWhitespace(fragment)
+  const normalized = (fragment.textContent ?? "").replace(/\u00a0/g, " ")
+  const trimmedStart = normalized.trimStart()
+  const leadingWhitespace = normalized.length - trimmedStart.length
+  const match = trimmedStart.match(/^>\s?/)
+  if (match) {
+    removeLeadingCharacters(fragment, leadingWhitespace + match[0].length)
+  }
+  trimFragmentWhitespace(fragment)
+  return fragmentHasContent(fragment) ? fragment : null
 }
 
 export function extractPlainText(html: string) {
@@ -596,7 +809,7 @@ export function ProcessEditor({
     selection.addRange(range)
   }, [])
 
-  const getSelectionDetails = useCallback(() => {
+  const getSelectionDetails = useCallback((): SelectionDetails | null => {
     if (typeof window === "undefined") return null
     const editor = editorRef.current
     if (!editor) return null
@@ -616,6 +829,7 @@ export function ProcessEditor({
     const text = container.textContent ?? ""
     return {
       text,
+      html: container.innerHTML,
       isCollapsed: selection.isCollapsed,
     }
   }, [])
@@ -805,12 +1019,27 @@ export function ProcessEditor({
       const details = getSelectionDetails()
       const isCollapsed = details?.isCollapsed ?? true
       const placeholder = level === 1 ? "Heading 1" : "Heading 2"
-      const lines = details ? splitSelectionLines(details.text).map(stripHeadingMarkers) : []
-      const filtered = lines.filter((line) => line.length > 0)
-      const content = filtered.length > 0 ? filtered : [placeholder]
-      const html = content
-        .map((line) => `<h${level}>${escapeHtml(line)}</h${level}>`)
-        .join("")
+      let html = ""
+
+      if (details?.html) {
+        const fragments = getLineFragmentsFromHtml(details.html)
+        const sanitized = fragments
+          .map((fragment) => sanitizeHeadingFragment(fragment))
+          .filter((fragment): fragment is DocumentFragment => fragment !== null)
+
+        if (sanitized.length > 0) {
+          html = sanitized
+            .map(
+              (fragment) => `<h${level}>${fragmentToHtml(fragment)}</h${level}>`,
+            )
+            .join("")
+        }
+      }
+
+      if (!html) {
+        html = `<h${level}>${escapeHtml(placeholder)}</h${level}>`
+      }
+
       const finalHtml = isCollapsed ? `${html}<p><br /></p>` : html
       document.execCommand("insertHTML", false, finalHtml)
       updateFormats()
@@ -829,12 +1058,26 @@ export function ProcessEditor({
       restoreSelection()
       const details = getSelectionDetails()
       const isCollapsed = details?.isCollapsed ?? true
-      const lines = details ? splitSelectionLines(details.text).map(stripListMarkers) : []
-      const items = lines.filter((line) => line.length > 0)
-      const content = items.length > 0 ? items : ["List item"]
-      const listHtml = `<${type}>${content
-        .map((item) => `<li>${escapeHtml(item)}</li>`)
-        .join("")}</${type}>`
+      let listHtml = ""
+
+      if (details?.html) {
+        const fragments = getLineFragmentsFromHtml(details.html)
+        const sanitized = fragments
+          .map((fragment) => sanitizeListItemFragment(fragment))
+          .filter((fragment): fragment is DocumentFragment => fragment !== null)
+
+        if (sanitized.length > 0) {
+          const itemsHtml = sanitized
+            .map((fragment) => `<li>${fragmentToHtml(fragment)}</li>`)
+            .join("")
+          listHtml = `<${type}>${itemsHtml}</${type}>`
+        }
+      }
+
+      if (!listHtml) {
+        listHtml = `<${type}><li>List item</li></${type}>`
+      }
+
       const finalHtml = isCollapsed ? `${listHtml}<p><br /></p>` : listHtml
       document.execCommand("insertHTML", false, finalHtml)
       updateFormats()
@@ -852,17 +1095,35 @@ export function ProcessEditor({
     restoreSelection()
     const details = getSelectionDetails()
     const isCollapsed = details?.isCollapsed ?? true
-    const lines = details ? splitSelectionLines(details.text) : []
-    const parsed = lines.map(parseChecklistLine).filter((item) => item.text.length > 0)
-    const items = parsed.length > 0 ? parsed : [{ text: "Checklist item", checked: false }]
-    const listHtml = `<ul class="process-checklist space-y-2 list-none pl-0">${items
-      .map(
-        (item) =>
-          `<li><label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border border-gray-300"${
-            item.checked ? " checked" : ""
-          } /><span>${escapeHtml(item.text || "Checklist item")}</span></label></li>`,
-      )
-      .join("")}</ul>`
+    let listHtml = ""
+
+    if (details?.html) {
+      const fragments = getLineFragmentsFromHtml(details.html)
+      const sanitized = fragments
+        .map((fragment) => sanitizeChecklistFragment(fragment))
+        .filter(
+          (item): item is { fragment: DocumentFragment; checked: boolean } =>
+            item !== null,
+        )
+
+      if (sanitized.length > 0) {
+        const itemsHtml = sanitized
+          .map((item) => {
+            const contentHtml = fragmentToHtml(item.fragment) || "Checklist item"
+            return `<li><label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border border-gray-300"${
+              item.checked ? " checked" : ""
+            } /><span>${contentHtml}</span></label></li>`
+          })
+          .join("")
+        listHtml = `<ul class="process-checklist space-y-2 list-none pl-0">${itemsHtml}</ul>`
+      }
+    }
+
+    if (!listHtml) {
+      listHtml =
+        '<ul class="process-checklist space-y-2 list-none pl-0"><li><label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border border-gray-300" /><span>Checklist item</span></label></li></ul>'
+    }
+
     const finalHtml = isCollapsed ? `${listHtml}<p><br /></p>` : listHtml
     document.execCommand("insertHTML", false, finalHtml)
     updateFormats()
@@ -878,10 +1139,26 @@ export function ProcessEditor({
     restoreSelection()
     const details = getSelectionDetails()
     const isCollapsed = details?.isCollapsed ?? true
-    const lines = details ? splitSelectionLines(details.text).map(stripQuoteMarker) : []
-    const filtered = lines.filter((line) => line.length > 0)
-    const content = filtered.length > 0 ? filtered.join("\n") : "Quote"
-    const quoteHtml = `<blockquote>${escapeHtml(content).replace(/\n/g, "<br />")}</blockquote>`
+    let quoteHtml = ""
+
+    if (details?.html) {
+      const fragments = getLineFragmentsFromHtml(details.html)
+      const sanitized = fragments
+        .map((fragment) => sanitizeQuoteFragment(fragment))
+        .filter((fragment): fragment is DocumentFragment => fragment !== null)
+
+      if (sanitized.length > 0) {
+        const innerHtml = sanitized
+          .map((fragment) => fragmentToHtml(fragment))
+          .join("<br />")
+        quoteHtml = `<blockquote>${innerHtml}</blockquote>`
+      }
+    }
+
+    if (!quoteHtml) {
+      quoteHtml = "<blockquote>Quote</blockquote>"
+    }
+
     const finalHtml = isCollapsed ? `${quoteHtml}<p><br /></p>` : quoteHtml
     document.execCommand("insertHTML", false, finalHtml)
     updateFormats()
