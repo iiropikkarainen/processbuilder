@@ -31,7 +31,13 @@ import { ConditionalNode } from "./nodes/conditional-node"
 import { CodeNode } from "./nodes/code-node"
 import { generateNodeId, createNode, deadlinesAreEqual } from "@/lib/workflow-utils"
 import { cn } from "@/lib/utils"
-import type { Task, WorkflowNode, NodeData, ProcessDeadline } from "@/lib/types"
+import type {
+  Task,
+  WorkflowNode,
+  NodeData,
+  ProcessDeadline,
+  Workflow,
+} from "@/lib/types"
 
 const nodeTypes: NodeTypes = {
   input: InputNode,
@@ -148,6 +154,7 @@ type WorkflowBuilderProps = {
   onUpdateTaskDueDate?: (taskId: number, due: string) => void
   onMarkTaskDone?: (taskId: number) => void
   onLastProcessDeadlineChange?: (deadline: ProcessDeadline | null) => void
+  onWorkflowUpdate?: (workflow: Workflow) => void
 }
 
 export default function WorkflowBuilder({
@@ -159,6 +166,7 @@ export default function WorkflowBuilder({
   onUpdateTaskDueDate,
   onMarkTaskDone,
   onLastProcessDeadlineChange,
+  onWorkflowUpdate,
 }: WorkflowBuilderProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
@@ -307,6 +315,14 @@ export default function WorkflowBuilder({
       setSelectedNode(updated)
     }
   }, [nodes, selectedNode])
+
+  useEffect(() => {
+    if (!onWorkflowUpdate) {
+      return
+    }
+
+    onWorkflowUpdate({ nodes, edges })
+  }, [nodes, edges, onWorkflowUpdate])
 
   useEffect(() => {
     if (!onLastProcessDeadlineChange) {
