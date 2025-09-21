@@ -76,6 +76,44 @@ function sanitizeHtml(value: string) {
     .replace(/javascript:/gi, "")
 }
 
+function splitSelectionLines(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\u00a0/g, " ").trim())
+    .filter((line) => line.length > 0)
+}
+
+function stripHeadingMarkers(line: string) {
+  return line.replace(/^#{1,6}\s*/, "").trim()
+}
+
+function stripQuoteMarker(line: string) {
+  return line.replace(/^>\s?/, "").trim()
+}
+
+function stripListMarkers(line: string) {
+  return line
+    .replace(/^([-*+])\s+/, "")
+    .replace(/^(\d+)([.)])\s+/, "")
+    .replace(/^[a-zA-Z]([.)])\s+/, "")
+    .replace(/^\(?(\d+)\)?\s+/, "")
+    .trim()
+}
+
+function parseChecklistLine(line: string) {
+  const match = line.match(/^[-*+]?\s*\[(\s|x|X)\]\s*(.*)$/)
+  if (match) {
+    return {
+      text: match[2]?.trim() ?? "",
+      checked: match[1]?.toLowerCase() === "x",
+    }
+  }
+  return {
+    text: stripListMarkers(line),
+    checked: false,
+  }
+}
+
 type ListContext = {
   type: "ol" | "ul"
   index: number
@@ -558,6 +596,30 @@ export function ProcessEditor({
     selection.addRange(range)
   }, [])
 
+  const getSelectionDetails = useCallback(() => {
+    if (typeof window === "undefined") return null
+    const editor = editorRef.current
+    if (!editor) return null
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return null
+    const range = selection.getRangeAt(0)
+    try {
+      if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)) {
+        return null
+      }
+    } catch (error) {
+      return null
+    }
+    const fragment = range.cloneContents()
+    const container = document.createElement("div")
+    container.appendChild(fragment)
+    const text = container.textContent ?? ""
+    return {
+      text,
+      isCollapsed: selection.isCollapsed,
+    }
+  }, [])
+
   const updateSlashMenu = useCallback(() => {
     if (typeof window === "undefined") return
     const selection = window.getSelection()
@@ -675,12 +737,12 @@ export function ProcessEditor({
     }
     if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "7") {
       event.preventDefault()
-      applyCommand("insertOrderedList")
+      insertList("ol")
       return
     }
     if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === "8") {
       event.preventDefault()
-      applyCommand("insertUnorderedList")
+      insertList("ul")
       return
     }
     if (event.key === "Tab") {
@@ -734,24 +796,99 @@ export function ProcessEditor({
     }
   }
 
-  const toggleChecklist = useCallback(() => {
+  const insertHeading = useCallback(
+    (level: 1 | 2) => {
+      if (!editorRef.current) return
+      restoreSelection()
+      editorRef.current.focus({ preventScroll: true })
+      restoreSelection()
+      const details = getSelectionDetails()
+      const isCollapsed = details?.isCollapsed ?? true
+      const placeholder = level === 1 ? "Heading 1" : "Heading 2"
+      const lines = details ? splitSelectionLines(details.text).map(stripHeadingMarkers) : []
+      const filtered = lines.filter((line) => line.length > 0)
+      const content = filtered.length > 0 ? filtered : [placeholder]
+      const html = content
+        .map((line) => `<h${level}>${escapeHtml(line)}</h${level}>`)
+        .join("")
+      const finalHtml = isCollapsed ? `${html}<p><br /></p>` : html
+      document.execCommand("insertHTML", false, finalHtml)
+      updateFormats()
+      setTimeout(() => {
+        triggerChange()
+      }, 0)
+    },
+    [getSelectionDetails, restoreSelection, triggerChange, updateFormats],
+  )
+
+  const insertList = useCallback(
+    (type: "ol" | "ul") => {
+      if (!editorRef.current) return
+      restoreSelection()
+      editorRef.current.focus({ preventScroll: true })
+      restoreSelection()
+      const details = getSelectionDetails()
+      const isCollapsed = details?.isCollapsed ?? true
+      const lines = details ? splitSelectionLines(details.text).map(stripListMarkers) : []
+      const items = lines.filter((line) => line.length > 0)
+      const content = items.length > 0 ? items : ["List item"]
+      const listHtml = `<${type}>${content
+        .map((item) => `<li>${escapeHtml(item)}</li>`)
+        .join("")}</${type}>`
+      const finalHtml = isCollapsed ? `${listHtml}<p><br /></p>` : listHtml
+      document.execCommand("insertHTML", false, finalHtml)
+      updateFormats()
+      setTimeout(() => {
+        triggerChange()
+      }, 0)
+    },
+    [getSelectionDetails, restoreSelection, triggerChange, updateFormats],
+  )
+
+  const insertChecklist = useCallback(() => {
     if (!editorRef.current) return
     restoreSelection()
     editorRef.current.focus({ preventScroll: true })
     restoreSelection()
-    const checklistHtml = `
-      <ul class="process-checklist space-y-2 list-none pl-0">
-        <li>
-          <label class="flex items-center gap-2">
-            <input type="checkbox" class="h-4 w-4 rounded border border-gray-300" />
-            <span>Checklist item</span>
-          </label>
-        </li>
-      </ul><p><br /></p>
-    `
-    document.execCommand("insertHTML", false, checklistHtml)
-    triggerChange()
-  }, [restoreSelection, triggerChange])
+    const details = getSelectionDetails()
+    const isCollapsed = details?.isCollapsed ?? true
+    const lines = details ? splitSelectionLines(details.text) : []
+    const parsed = lines.map(parseChecklistLine).filter((item) => item.text.length > 0)
+    const items = parsed.length > 0 ? parsed : [{ text: "Checklist item", checked: false }]
+    const listHtml = `<ul class="process-checklist space-y-2 list-none pl-0">${items
+      .map(
+        (item) =>
+          `<li><label class="flex items-center gap-2"><input type="checkbox" class="h-4 w-4 rounded border border-gray-300"${
+            item.checked ? " checked" : ""
+          } /><span>${escapeHtml(item.text || "Checklist item")}</span></label></li>`,
+      )
+      .join("")}</ul>`
+    const finalHtml = isCollapsed ? `${listHtml}<p><br /></p>` : listHtml
+    document.execCommand("insertHTML", false, finalHtml)
+    updateFormats()
+    setTimeout(() => {
+      triggerChange()
+    }, 0)
+  }, [getSelectionDetails, restoreSelection, triggerChange, updateFormats])
+
+  const insertQuote = useCallback(() => {
+    if (!editorRef.current) return
+    restoreSelection()
+    editorRef.current.focus({ preventScroll: true })
+    restoreSelection()
+    const details = getSelectionDetails()
+    const isCollapsed = details?.isCollapsed ?? true
+    const lines = details ? splitSelectionLines(details.text).map(stripQuoteMarker) : []
+    const filtered = lines.filter((line) => line.length > 0)
+    const content = filtered.length > 0 ? filtered.join("\n") : "Quote"
+    const quoteHtml = `<blockquote>${escapeHtml(content).replace(/\n/g, "<br />")}</blockquote>`
+    const finalHtml = isCollapsed ? `${quoteHtml}<p><br /></p>` : quoteHtml
+    document.execCommand("insertHTML", false, finalHtml)
+    updateFormats()
+    setTimeout(() => {
+      triggerChange()
+    }, 0)
+  }, [getSelectionDetails, restoreSelection, triggerChange, updateFormats])
 
   const insertCallout = useCallback(() => {
     if (!editorRef.current) return
@@ -788,10 +925,6 @@ export function ProcessEditor({
     document.execCommand("insertHTML", false, codeBlock)
     triggerChange()
   }, [restoreSelection, triggerChange])
-
-  const insertQuote = useCallback(() => {
-    applyCommand("formatBlock", "blockquote")
-  }, [applyCommand])
 
   const insertAiPrompt = useCallback(() => {
     if (!editorRef.current) return
@@ -837,19 +970,19 @@ export function ProcessEditor({
     setSlashIndex(0)
     switch (item.value) {
       case "heading-1":
-        applyCommand("formatBlock", "h1")
+        insertHeading(1)
         break
       case "heading-2":
-        applyCommand("formatBlock", "h2")
+        insertHeading(2)
         break
       case "numbered-list":
-        applyCommand("insertOrderedList")
+        insertList("ol")
         break
       case "bullet-list":
-        applyCommand("insertUnorderedList")
+        insertList("ul")
         break
       case "checklist":
-        toggleChecklist()
+        insertChecklist()
         break
       case "quote":
         insertQuote()
@@ -911,14 +1044,14 @@ export function ProcessEditor({
       label: "Heading 1",
       icon: Heading1,
       isActive: activeFormats.heading1,
-      onSelect: () => applyCommand("formatBlock", "h1"),
+      onSelect: () => insertHeading(1),
     },
     {
       id: "heading2",
       label: "Heading 2",
       icon: Heading2,
       isActive: activeFormats.heading2,
-      onSelect: () => applyCommand("formatBlock", "h2"),
+      onSelect: () => insertHeading(2),
     },
     {
       id: "ordered",
@@ -926,7 +1059,7 @@ export function ProcessEditor({
       icon: ListOrdered,
       shortcut: "⇧⌘7",
       isActive: activeFormats.orderedList,
-      onSelect: () => applyCommand("insertOrderedList"),
+      onSelect: () => insertList("ol"),
     },
     {
       id: "unordered",
@@ -934,13 +1067,13 @@ export function ProcessEditor({
       icon: List,
       shortcut: "⇧⌘8",
       isActive: activeFormats.unorderedList,
-      onSelect: () => applyCommand("insertUnorderedList"),
+      onSelect: () => insertList("ul"),
     },
     {
       id: "checklist",
       label: "Checklist",
       icon: ListChecks,
-      onSelect: () => toggleChecklist(),
+      onSelect: () => insertChecklist(),
     },
     {
       id: "quote",
@@ -1049,7 +1182,7 @@ export function ProcessEditor({
                 )}
                 <div
                   ref={editorRef}
-                  className="process-editor-content space-y-4 text-sm leading-6 text-foreground"
+                  className="process-editor-content space-y-4 text-sm leading-6 text-foreground outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus:ring-0"
                   contentEditable
                   suppressContentEditableWarning
                   spellCheck
