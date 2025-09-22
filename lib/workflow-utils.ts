@@ -1,5 +1,9 @@
 import type { Node, XYPosition } from "reactflow"
-import type { NodeData, ProcessDeadline } from "./types"
+import type {
+  NodeData,
+  OutputAlertChannel,
+  ProcessDeadline,
+} from "./types"
 
 let nodeIdCounter = 0
 
@@ -44,8 +48,8 @@ export const createNode = ({
         ...baseNode,
         data: {
           ...baseNode.data,
-          outputType: "console",
-          outputFormat: "json",
+          outputCompletionType: "markDone",
+          outputAlertChannels: [],
         },
       }
     case "process":
@@ -195,6 +199,60 @@ export const describeInputStartTrigger = (data: NodeData): string | null => {
       return "Scheduled start time"
     }
   }
+}
+
+const OUTPUT_ALERT_LABELS: Record<OutputAlertChannel, string> = {
+  slack: "Slack",
+  teams: "Teams",
+  email: "Email",
+}
+
+const formatList = (items: string[]): string => {
+  if (items.length === 0) {
+    return ""
+  }
+
+  if (items.length === 1) {
+    return items[0]
+  }
+
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`
+  }
+
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`
+}
+
+export const describeOutputCompletion = (data: NodeData): string => {
+  if (data.outputCompletionType === "scheduled") {
+    const formatted = formatDateTime(data.outputCompletionScheduledAt)
+
+    if (formatted) {
+      return `Ends at ${formatted}`
+    }
+
+    return "Ends at scheduled time"
+  }
+
+  return "Stops when final process is marked as done"
+}
+
+export const describeOutputAlerts = (
+  channels: OutputAlertChannel[] | undefined,
+): string | null => {
+  if (!channels || channels.length === 0) {
+    return null
+  }
+
+  const labels = channels
+    .map((channel) => OUTPUT_ALERT_LABELS[channel])
+    .filter((label): label is string => Boolean(label))
+
+  if (labels.length === 0) {
+    return null
+  }
+
+  return `Alerts: ${formatList(labels)}`
 }
 
 export const deadlinesAreEqual = (

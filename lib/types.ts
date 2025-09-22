@@ -10,6 +10,8 @@ export interface Task {
   nodeId: string | null
 }
 
+export type OutputCompletionType = "markDone" | "scheduled"
+export type OutputAlertChannel = "slack" | "teams" | "email"
 export type OutputRequirementType = "markDone" | "file" | "link" | "text"
 
 export interface OutputSubmission {
@@ -49,8 +51,9 @@ export interface NodeData {
   startTriggerServiceDeskRequests?: string[]
 
   // Output node properties
-  outputType?: "console" | "api" | "database" | "file"
-  outputFormat?: "json" | "csv" | "xml" | "text"
+  outputCompletionType?: OutputCompletionType
+  outputCompletionScheduledAt?: string
+  outputAlertChannels?: OutputAlertChannel[]
 
   // Process node properties
   assignmentType?: "user" | "role"

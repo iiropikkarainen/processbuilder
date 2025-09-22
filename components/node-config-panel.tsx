@@ -299,46 +299,191 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
         )
       }
 
-      case "output":
+      case "output": {
+        const completionType = (localData.outputCompletionType ?? "markDone") as
+          | "markDone"
+          | "scheduled"
+
+        const scheduledDate = (() => {
+          const value = localData.outputCompletionScheduledAt
+
+          if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? undefined : value
+          }
+
+          if (typeof value === "string" && value) {
+            const parsed = new Date(value)
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed
+          }
+
+          return undefined
+        })()
+
+        const scheduledTimeValue = (() => {
+          if (!scheduledDate) {
+            return ""
+          }
+
+          const hours = scheduledDate.getHours().toString().padStart(2, "0")
+          const minutes = scheduledDate.getMinutes().toString().padStart(2, "0")
+
+          return `${hours}:${minutes}`
+        })()
+
+        const handleCompletionDateChange = (date: Date | undefined) => {
+          if (!date) {
+            handleChange("outputCompletionScheduledAt", undefined)
+            return
+          }
+
+          const nextDate = new Date(date)
+
+          if (scheduledDate) {
+            nextDate.setHours(
+              scheduledDate.getHours(),
+              scheduledDate.getMinutes(),
+              0,
+              0,
+            )
+          }
+
+          handleChange("outputCompletionScheduledAt", nextDate.toISOString())
+        }
+
+        const handleCompletionTimeChange = (value: string) => {
+          if (!value) {
+            if (!scheduledDate) {
+              handleChange("outputCompletionScheduledAt", undefined)
+              return
+            }
+
+            const resetDate = new Date(scheduledDate)
+            resetDate.setHours(0, 0, 0, 0)
+            handleChange("outputCompletionScheduledAt", resetDate.toISOString())
+            return
+          }
+
+          const [hoursPart, minutesPart] = value.split(":")
+          const hours = Number.parseInt(hoursPart ?? "", 10)
+          const minutes = Number.parseInt(minutesPart ?? "", 10)
+
+          if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+            return
+          }
+
+          const baseDate = scheduledDate ? new Date(scheduledDate) : new Date()
+          baseDate.setHours(hours, minutes, 0, 0)
+
+          handleChange("outputCompletionScheduledAt", baseDate.toISOString())
+        }
+
+        const alertOptions = ["slack", "teams", "email"] as const
+        const selectedAlerts = Array.isArray(localData.outputAlertChannels)
+          ? (localData.outputAlertChannels as typeof alertOptions[number][])
+          : []
+
+        const toggleAlert = (channel: (typeof alertOptions)[number]) => {
+          const nextAlerts = selectedAlerts.includes(channel)
+            ? selectedAlerts.filter((item) => item !== channel)
+            : [...selectedAlerts, channel]
+
+          handleChange("outputAlertChannels", nextAlerts)
+        }
+
         return (
-          <>
+          <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="outputType">Output Type</Label>
-              <Select
-                value={localData.outputType || "console"}
-                onValueChange={(value) => handleChange("outputType", value)}
+              <Label>Operation completion</Label>
+              <RadioGroup
+                value={completionType}
+                onValueChange={(value) => {
+                  handleChange("outputCompletionType", value)
+
+                  if (value === "markDone") {
+                    handleChange("outputCompletionScheduledAt", undefined)
+                  }
+                }}
               >
-                <SelectTrigger id="outputType">
-                  <SelectValue placeholder="Select output type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="console">Console</SelectItem>
-                  <SelectItem value="api">API</SelectItem>
-                  <SelectItem value="database">Database</SelectItem>
-                  <SelectItem value="file">File</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="markDone" id="output-done" />
+                    <Label htmlFor="output-done" className="font-normal">
+                      Stop when final node process is marked as done
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="scheduled" id="output-scheduled" />
+                    <Label htmlFor="output-scheduled" className="font-normal">
+                      Complete at a scheduled time and date
+                    </Label>
+                  </div>
+
+                  {completionType === "scheduled" ? (
+                    <div className="ml-6 space-y-3">
+                      <Calendar
+                        mode="single"
+                        captionLayout="dropdown-buttons"
+                        defaultMonth={scheduledDate ?? new Date()}
+                        selected={scheduledDate}
+                        onSelect={handleCompletionDateChange}
+                        className="rounded-lg border shadow-sm"
+                      />
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="output-schedule-time"
+                          className="text-xs font-medium text-gray-500"
+                        >
+                          Completion time
+                        </Label>
+                        <Input
+                          id="output-schedule-time"
+                          type="time"
+                          value={scheduledTimeValue}
+                          onChange={(event) =>
+                            handleCompletionTimeChange(event.target.value)
+                          }
+                          className="w-40"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </RadioGroup>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="outputFormat">Output Format</Label>
-              <Select
-                value={localData.outputFormat || "json"}
-                onValueChange={(value) => handleChange("outputFormat", value)}
-              >
-                <SelectTrigger id="outputFormat">
-                  <SelectValue placeholder="Select format" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="json">JSON</SelectItem>
-                  <SelectItem value="csv">CSV</SelectItem>
-                  <SelectItem value="xml">XML</SelectItem>
-                  <SelectItem value="text">Plain Text</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Send alert</Label>
+              <p className="text-xs text-gray-500">
+                Notify stakeholders when the operation finishes by selecting one or
+                more channels.
+              </p>
+              <div className="space-y-2">
+                {alertOptions.map((option) => {
+                  const id = `output-alert-${option}`
+
+                  return (
+                    <div key={option} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={id}
+                        checked={selectedAlerts.includes(option)}
+                        onCheckedChange={() => toggleAlert(option)}
+                      />
+                      <Label htmlFor={id} className="font-normal">
+                        {option === "slack"
+                          ? "Slack"
+                          : option === "teams"
+                          ? "Teams"
+                          : "Email"}
+                      </Label>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </>
+          </div>
         )
+      }
 
       case "process": {
         const assignmentType = (localData.assignmentType ?? "user") as "user" | "role"

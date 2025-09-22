@@ -70,7 +70,12 @@ import {
 import WorkflowBuilder from "./workflow-builder"
 import { ProcessEditor, extractPlainText } from "./process-editor"
 import { cn } from "@/lib/utils"
-import { deadlinesAreEqual, describeInputStartTrigger } from "@/lib/workflow-utils"
+import {
+  deadlinesAreEqual,
+  describeInputStartTrigger,
+  describeOutputAlerts,
+  describeOutputCompletion,
+} from "@/lib/workflow-utils"
 import type {
   ProcessDeadline,
   Task,
@@ -1381,10 +1386,11 @@ const CalendarView = ({
   const outputDescription =
     primaryOutput?.description ||
     "Add an output node to capture the expected deliverable for this process."
-  const outputFormatNote = primaryOutput?.outputType
-    ? `Output: ${primaryOutput.outputType}${
-        primaryOutput.outputFormat ? ` (${primaryOutput.outputFormat})` : ""
-      }`
+  const outputCompletionNote = primaryOutput
+    ? describeOutputCompletion(primaryOutput)
+    : null
+  const outputAlertsNote = primaryOutput
+    ? describeOutputAlerts(primaryOutput.outputAlertChannels)
     : null
 
   return (
@@ -1652,8 +1658,11 @@ const CalendarView = ({
                 {outputLabel}
               </span>
               <p className="text-sm text-foreground">{outputDescription}</p>
-              {outputFormatNote ? (
-                <p className="text-xs text-muted-foreground">{outputFormatNote}</p>
+              {outputCompletionNote ? (
+                <p className="text-xs text-muted-foreground">{outputCompletionNote}</p>
+              ) : null}
+              {outputAlertsNote ? (
+                <p className="text-xs text-muted-foreground">{outputAlertsNote}</p>
               ) : null}
             </div>
           </div>

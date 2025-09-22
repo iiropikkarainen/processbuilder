@@ -4,7 +4,14 @@ import { memo } from "react"
 import { Handle, Position, type NodeProps } from "reactflow"
 import { FileOutput } from "lucide-react"
 import type { NodeData } from "@/lib/types"
+import {
+  describeOutputAlerts,
+  describeOutputCompletion,
+} from "@/lib/workflow-utils"
 export const OutputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>) => {
+  const completionNote = describeOutputCompletion(data)
+  const alertsNote = describeOutputAlerts(data.outputAlertChannels)
+
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-white border-2 border-green-500 min-w-[150px]">
       <div className="flex items-center">
@@ -19,11 +26,14 @@ export const OutputNode = memo(({ id, data, isConnectable }: NodeProps<NodeData>
         </div>
       </div>
 
-      {data.outputType && (
-        <div className="mt-2 text-xs bg-gray-100 p-1 rounded">
-          Output: {data.outputType} ({data.outputFormat || "json"})
-        </div>
-      )}
+      <div className="mt-2 space-y-1">
+        <div className="text-xs bg-gray-100 p-1 rounded">{completionNote}</div>
+        {alertsNote ? (
+          <div className="text-xs bg-blue-50 text-blue-600 p-1 rounded">
+            {alertsNote}
+          </div>
+        ) : null}
+      </div>
 
       <Handle
         type="target"
