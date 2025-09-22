@@ -10,6 +10,17 @@ export interface Task {
   nodeId: string | null
 }
 
+export type OutputRequirementType = "markDone" | "file" | "link" | "text"
+
+export interface OutputSubmission {
+  nodeId: string
+  type: OutputRequirementType
+  value: string
+  fileName?: string
+  completedBy: string
+  completedAt: string
+}
+
 export type ProcessDeadline =
   | {
       type: "relative"
@@ -54,7 +65,7 @@ export interface NodeData {
   reminderEnabled?: boolean
   reminderLeadTime?: string
   reminderLeadTimeUnit?: "hours" | "days"
-  outputRequirementType?: "markDone" | "file" | "link" | "text"
+  outputRequirementType?: OutputRequirementType
   outputStructuredDataTemplate?: string
   validationRequireOutput?: boolean
   validationNotes?: string

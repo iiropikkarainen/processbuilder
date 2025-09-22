@@ -6,10 +6,13 @@ import {
   useMemo,
   useState,
   type Dispatch,
+  type FormEvent,
+  type ReactNode,
   type SetStateAction,
 } from "react"
 import {
   Calendar as CalendarIcon,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -74,6 +77,8 @@ import type {
   Workflow,
   WorkflowNode,
   NodeData,
+  OutputRequirementType,
+  OutputSubmission,
 } from "@/lib/types"
 
 type Subcategory = {
@@ -537,6 +542,7 @@ const OWNER_OPTIONS = [
 ]
 
 const PROCESS_CREATOR_NAME = "Olivia Martin"
+const CURRENT_PROCESSOR_NAME = "Jordan Smith"
 
 const TIMEZONE_OPTIONS = [
   "UTC",
@@ -630,7 +636,7 @@ const ProcessView = ({
             ? {
                 ...task,
                 completed: true,
-                completedBy: "Current User",
+                completedBy: CURRENT_PROCESSOR_NAME,
                 completedAt: new Date().toLocaleString(),
               }
             : task,
@@ -702,7 +708,24 @@ const NODE_STATUS_BADGE_STYLES: Record<NodeStatus, string> = {
 
 type DeadlineInfo = { label: string; absoluteDate: Date | null }
 type AssignmentInfo = { label: string; notes: string[] }
-type OutputRequirementInfo = { label: string; notes: string[] }
+type OutputRequirementInfo = {
+  label: string
+  notes: string[]
+  type: OutputRequirementType
+}
+
+const OUTPUT_ACTION_LABELS: Record<OutputRequirementType, string> = {
+  markDone: "Marked step complete",
+  file: "Uploaded supporting file",
+  link: "Provided link or URL",
+  text: "Submitted text update",
+}
+
+type OutputSubmissionPayload = {
+  type: OutputRequirementType
+  value: string
+  fileName?: string
+}
 
 const parseDateValue = (value?: string | null): Date | null => {
   if (!value) return null
@@ -768,7 +791,7 @@ const getAssignmentInfo = (data?: NodeData | null): AssignmentInfo => {
 }
 
 const getOutputRequirementInfo = (data?: NodeData | null): OutputRequirementInfo => {
-  const requirementMap: Record<NodeData["outputRequirementType"] | undefined, string> = {
+  const requirementMap: Record<OutputRequirementType | undefined, string> = {
     markDone: "Mark step complete",
     file: "Upload supporting file",
     link: "Provide link or URL",
@@ -776,7 +799,8 @@ const getOutputRequirementInfo = (data?: NodeData | null): OutputRequirementInfo
     undefined: "Mark step complete",
   }
 
-  const label = requirementMap[data?.outputRequirementType]
+  const requirementType = data?.outputRequirementType ?? "markDone"
+  const label = requirementMap[requirementType]
   const notes: string[] = []
 
   if (data?.outputStructuredDataTemplate) {
@@ -791,11 +815,11 @@ const getOutputRequirementInfo = (data?: NodeData | null): OutputRequirementInfo
     notes.push(data.validationNotes)
   }
 
-  return { label, notes }
+  return { label, notes, type: requirementType }
 }
 
-const buildCompletionLog = (tasks: Task[]): string[] =>
-  tasks
+const buildCompletionLog = (tasks: Task[], submission?: OutputSubmission): string[] => {
+  const taskLogs = tasks
     .filter((task) => task.completed && task.completedAt)
     .map((task) => {
       const parsed = parseDateValue(task.completedAt)
@@ -803,6 +827,288 @@ const buildCompletionLog = (tasks: Task[]): string[] =>
       const actor = task.completedBy || "Unknown processor"
       return `${actor} • ${dateLabel}`
     })
+
+  if (!submission) {
+    return taskLogs
+  }
+
+  const parsed = parseDateValue(submission.completedAt)
+  const dateLabel = parsed ? formatDateTime(parsed) : submission.completedAt
+  const actionLabel = OUTPUT_ACTION_LABELS[submission.type] || "Completed output"
+  const actor = submission.completedBy || "Unknown processor"
+
+  return [`${actor} • ${actionLabel} • ${dateLabel}`, ...taskLogs]
+}
+
+const OutputRequirementAction = ({
+  nodeId,
+  info,
+  submission,
+  onSubmit,
+  variant = "table",
+}: {
+  nodeId: string
+  info: OutputRequirementInfo
+  submission?: OutputSubmission
+  onSubmit: (nodeId: string, payload: OutputSubmissionPayload) => void
+  variant?: "table" | "card"
+}) => {
+  const [isEditing, setIsEditing] = useState(info.type !== "markDone" && !submission)
+  const [linkValue, setLinkValue] = useState(submission?.type === "link" ? submission.value : "")
+  const [textValue, setTextValue] = useState(submission?.type === "text" ? submission.value : "")
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  useEffect(() => {
+    if (info.type === "markDone") {
+      setIsEditing(false)
+      return
+    }
+
+    setIsEditing(!submission)
+  }, [submission, info.type])
+
+  useEffect(() => {
+    if (submission?.type === "link") {
+      setLinkValue(submission.value)
+    } else if (!submission) {
+      setLinkValue("")
+    }
+  }, [submission])
+
+  useEffect(() => {
+    if (submission?.type === "text") {
+      setTextValue(submission.value)
+    } else if (!submission) {
+      setTextValue("")
+    }
+  }, [submission])
+
+  useEffect(() => {
+    if (!isEditing) {
+      setSelectedFile(null)
+    }
+  }, [isEditing])
+
+  const formattedCompletionDate = submission
+    ? (() => {
+        const parsed = parseDateValue(submission.completedAt)
+        return parsed ? formatDateTime(parsed) : submission.completedAt
+      })()
+    : ""
+
+  const handleMarkDone = () => {
+    onSubmit(nodeId, { type: "markDone", value: "Marked complete" })
+  }
+
+  const handleFileSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!selectedFile) return
+
+    onSubmit(nodeId, {
+      type: "file",
+      value: selectedFile.name,
+      fileName: selectedFile.name,
+    })
+    setSelectedFile(null)
+    setIsEditing(false)
+  }
+
+  const handleLinkSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = linkValue.trim()
+    if (!trimmed) return
+
+    onSubmit(nodeId, { type: "link", value: trimmed })
+    setIsEditing(false)
+  }
+
+  const handleTextSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmed = textValue.trim()
+    if (!trimmed) return
+
+    onSubmit(nodeId, { type: "text", value: trimmed })
+    setIsEditing(false)
+  }
+
+  const handleCancelEdit = () => {
+    if (submission?.type === "link") {
+      setLinkValue(submission.value)
+    } else if (!submission) {
+      setLinkValue("")
+    }
+
+    if (submission?.type === "text") {
+      setTextValue(submission.value)
+    } else if (!submission) {
+      setTextValue("")
+    }
+
+    setSelectedFile(null)
+    setIsEditing(false)
+  }
+
+  let submissionDetail: ReactNode = null
+  if (submission) {
+    switch (submission.type) {
+      case "file":
+        submissionDetail = (
+          <div className="text-emerald-700">
+            File: <span className="font-medium break-all">{submission.fileName ?? submission.value}</span>
+          </div>
+        )
+        break
+      case "link":
+        submissionDetail = (
+          <a
+            href={submission.value}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="font-medium text-emerald-700 underline"
+          >
+            Open submitted link
+          </a>
+        )
+        break
+      case "text":
+        submissionDetail = (
+          <div className="whitespace-pre-wrap text-emerald-700">{submission.value}</div>
+        )
+        break
+      case "markDone":
+      default:
+        submissionDetail = null
+        break
+    }
+  }
+
+  const renderActionForm = () => {
+    switch (info.type) {
+      case "markDone":
+        return (
+          <Button type="button" size="sm" onClick={handleMarkDone} className="w-fit">
+            Mark as done
+          </Button>
+        )
+      case "file":
+        return (
+          <form onSubmit={handleFileSubmit} className="space-y-2">
+            <Input
+              type="file"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={!selectedFile}>
+                Upload file
+              </Button>
+              {submission ? (
+                <Button type="button" size="sm" variant="ghost" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+            {selectedFile ? (
+              <p className="text-xs text-muted-foreground">
+                Ready to upload: <span className="font-medium">{selectedFile.name}</span>
+              </p>
+            ) : null}
+          </form>
+        )
+      case "link": {
+        const trimmedLink = linkValue.trim()
+        return (
+          <form onSubmit={handleLinkSubmit} className="space-y-2">
+            <Input
+              value={linkValue}
+              onChange={(event) => setLinkValue(event.target.value)}
+              placeholder="https://example.com/update"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={!trimmedLink}>
+                Save link
+              </Button>
+              {submission ? (
+                <Button type="button" size="sm" variant="ghost" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        )
+      }
+      case "text": {
+        const trimmedText = textValue.trim()
+        return (
+          <form onSubmit={handleTextSubmit} className="space-y-2">
+            <Textarea
+              value={textValue}
+              onChange={(event) => setTextValue(event.target.value)}
+              rows={variant === "table" ? 3 : 4}
+              placeholder="Provide an update for this step"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" size="sm" disabled={!trimmedText}>
+                Submit response
+              </Button>
+              {submission ? (
+                <Button type="button" size="sm" variant="ghost" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              ) : null}
+            </div>
+          </form>
+        )
+      }
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className={cn("text-sm text-foreground", variant === "card" ? "space-y-3" : "space-y-2")}
+    >
+      <span className="font-medium">{info.label}</span>
+      {info.notes.length > 0 ? (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          {info.notes.map((note, index) => (
+            <span key={index} className="block">
+              {note}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {submission && (!isEditing || info.type === "markDone") ? (
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
+            <div className="space-y-1">
+              <div className="font-semibold text-emerald-800">
+                {OUTPUT_ACTION_LABELS[submission.type] || "Completed output"}
+              </div>
+              {submissionDetail}
+              <div className="text-emerald-600">
+                Completed by {submission.completedBy} on {formattedCompletionDate}
+              </div>
+            </div>
+          </div>
+          {info.type !== "markDone" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-start px-0 text-xs font-medium text-foreground hover:text-foreground"
+              onClick={() => setIsEditing(true)}
+            >
+              Update submission
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        renderActionForm()
+      )}
+    </div>
+  )
+}
 
 const determineNodeStatus = (
   assignmentInfo: AssignmentInfo,
@@ -838,6 +1144,8 @@ interface CalendarViewProps {
   tasks: Task[]
   workflow: Workflow | null
   processName: string
+  outputSubmissions: Record<string, OutputSubmission | undefined>
+  onSubmitOutput: (nodeId: string, payload: OutputSubmissionPayload) => void
 }
 
 type CalendarEntry = {
@@ -847,7 +1155,13 @@ type CalendarEntry = {
   dueDate: Date
 }
 
-const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
+const CalendarView = ({
+  tasks,
+  workflow,
+  processName,
+  outputSubmissions,
+  onSubmitOutput,
+}: CalendarViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
@@ -885,30 +1199,36 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
     return processNodes.map((node) => {
       const nodeData = node.data as NodeData | undefined
       const nodeTasks = tasksByNode.get(node.id) ?? []
-      const completedCount = nodeTasks.filter((task) => task.completed).length
-      const totalTasks = nodeTasks.length
-      const progressPercent = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
+      const submission = outputSubmissions[node.id]
+      const completedTaskCount = nodeTasks.filter((task) => task.completed).length
+      const totalActionCount = nodeTasks.length + 1
+      const completedActionCount = completedTaskCount + (submission ? 1 : 0)
+      const progressPercent = totalActionCount
+        ? Math.round((completedActionCount / totalActionCount) * 100)
+        : 0
       const deadlineInfo = getDeadlineInfo(nodeData)
       const assignmentInfo = getAssignmentInfo(nodeData)
       const outputInfo = getOutputRequirementInfo(nodeData)
-      const completionLog = buildCompletionLog(nodeTasks)
+      const completionLog = buildCompletionLog(nodeTasks, submission)
       const nodeStatus = determineNodeStatus(assignmentInfo, nodeTasks, completionLog)
 
       return {
         node,
         nodeData,
         nodeTasks,
-        completedCount,
-        totalTasks,
+        completedTaskCount,
+        completedActionCount,
+        totalActionCount,
         progressPercent,
         deadlineInfo,
         assignmentInfo,
         outputInfo,
         completionLog,
+        outputSubmission: submission,
         nodeStatus,
       }
     })
-  }, [processNodes, tasksByNode])
+  }, [processNodes, tasksByNode, outputSubmissions])
 
   const statusCounts = useMemo(
     () =>
@@ -1154,6 +1474,8 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
                 const outputInfo = getOutputRequirementInfo(nodeData)
                 const deadlineInfo = getDeadlineInfo(nodeData)
                 const taskDueDate = parseDateValue(entry.task?.due)
+                const nodeId = entry.node?.id ?? null
+                const submission = nodeId ? outputSubmissions[nodeId] : undefined
 
                 return (
                   <div
@@ -1209,12 +1531,26 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
                         <dt className="font-medium uppercase tracking-wide text-gray-500">
                           Output requirement
                         </dt>
-                        <dd className="mt-1 text-sm text-gray-900">{outputInfo.label}</dd>
-                        {outputInfo.notes.map((note, index) => (
-                          <div key={index} className="mt-1 text-xs text-gray-500">
-                            {note}
-                          </div>
-                        ))}
+                        <dd className="mt-1">
+                          {nodeId ? (
+                            <OutputRequirementAction
+                              nodeId={nodeId}
+                              info={outputInfo}
+                              submission={submission}
+                              onSubmit={onSubmitOutput}
+                              variant="card"
+                            />
+                          ) : (
+                            <div className="space-y-1 text-sm text-gray-900">
+                              <span className="font-medium">{outputInfo.label}</span>
+                              {outputInfo.notes.map((note, index) => (
+                                <span key={index} className="block text-xs text-gray-500">
+                                  {note}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </dd>
                       </div>
                     </dl>
 
@@ -1349,16 +1685,14 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
                           </div>
                           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
-                              {detail.completedCount}/{detail.totalTasks || 0} tasks done
+                              {detail.completedActionCount}/{detail.totalActionCount} actions complete
                             </span>
                             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
                               ID: {detail.node.id}
                             </span>
-                            {detail.totalTasks > 0 ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
-                                {detail.progressPercent}% complete
-                              </span>
-                            ) : null}
+                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                              {detail.progressPercent}% complete
+                            </span>
                           </div>
                         </div>
                         {detail.nodeTasks.length > 0 ? (
@@ -1395,16 +1729,12 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
                       </div>
                     </TableCell>
                     <TableCell className="align-top">
-                      <div className="flex flex-col gap-2 text-sm text-foreground">
-                        <span className="font-medium">{detail.outputInfo.label}</span>
-                        {detail.outputInfo.notes.length > 0 ? (
-                          <div className="space-y-1 text-xs text-muted-foreground">
-                            {detail.outputInfo.notes.map((note, index) => (
-                              <span key={index}>{note}</span>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
+                      <OutputRequirementAction
+                        nodeId={detail.node.id}
+                        info={detail.outputInfo}
+                        submission={detail.outputSubmission}
+                        onSubmit={onSubmitOutput}
+                      />
                     </TableCell>
                     <TableCell className="align-top">
                       <div className="flex flex-col gap-2 text-sm text-foreground">
@@ -1853,10 +2183,32 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [processSettings, setProcessSettings] = useState<ProcessSettings | null>(null)
   const [currentWorkflow, setCurrentWorkflow] = useState<Workflow | null>(null)
+  const [outputSubmissions, setOutputSubmissions] = useState<
+    Record<string, OutputSubmission | undefined>
+  >({})
 
   const handleWorkflowUpdate = useCallback((workflow: Workflow) => {
     setCurrentWorkflow(workflow)
   }, [])
+
+  const handleOutputSubmission = useCallback(
+    (nodeId: string, payload: OutputSubmissionPayload) => {
+      const timestamp = new Date().toISOString()
+
+      setOutputSubmissions((prev) => ({
+        ...prev,
+        [nodeId]: {
+          nodeId,
+          type: payload.type,
+          value: payload.value,
+          fileName: payload.fileName,
+          completedBy: CURRENT_PROCESSOR_NAME,
+          completedAt: timestamp,
+        },
+      }))
+    },
+    [],
+  )
 
   const [newCategoryTitle, setNewCategoryTitle] = useState("")
   const [showAddCategory, setShowAddCategory] = useState(false)
@@ -2333,6 +2685,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   )
 
   useEffect(() => {
+    setOutputSubmissions({})
+
     if (!selectedSOP) {
       setTasks([])
       setProcessSettings(null)
@@ -3019,6 +3373,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     tasks={tasks}
                     workflow={currentWorkflow}
                     processName={selectedSOP?.title ?? ""}
+                    outputSubmissions={outputSubmissions}
+                    onSubmitOutput={handleOutputSubmission}
                   />
                 </div>
                 <div
