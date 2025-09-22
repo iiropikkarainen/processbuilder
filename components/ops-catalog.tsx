@@ -99,12 +99,15 @@ type ProcessSettings = {
   vaultAccess: string[]
 }
 
+type SopStatus = "active" | "in-design" | "inactive"
+
 type Sop = {
   id: string
   title: string
   subcategoryId: string
   owner: string
   lastUpdated: string
+  status: SopStatus
   content: string
   processSettings: ProcessSettings
 }
@@ -196,6 +199,7 @@ const SAMPLE_DATA: Category[] = [
         subcategoryId: "payroll-benefits",
         owner: "Finance Manager",
         lastUpdated: "2025-09-10",
+        status: "active",
         content: `# Process: Payroll & Benefits Processing (Canada)
 
 **Category:** Finance & Accounting
@@ -234,6 +238,7 @@ Ensure accurate, timely payroll.
         subcategoryId: "hr-onboarding",
         owner: "HR Lead",
         lastUpdated: "2025-08-01",
+        status: "in-design",
         content: `# Process: New Hire Onboarding Checklist
 
 **Category:** Human Resources
@@ -272,6 +277,7 @@ Welcome and equip new employees.
         subcategoryId: "sales-pipeline",
         owner: "Sales Director",
         lastUpdated: "2025-07-12",
+        status: "active",
         content: `# Process: Quarterly Pipeline Review
 
 **Category:** Sales & Business Development
@@ -310,6 +316,7 @@ Keep pipeline data clean and forecast accurate.
         subcategoryId: "support-escalation",
         owner: "Customer Support Lead",
         lastUpdated: "2025-06-20",
+        status: "active",
         content: `# Process: Critical Incident Escalation
 
 **Category:** Customer Support
@@ -348,6 +355,7 @@ Ensure urgent cases are resolved quickly.
         subcategoryId: "it-access",
         owner: "IT Administrator",
         lastUpdated: "2025-09-05",
+        status: "inactive",
         content: `# Process: Provisioning New Employee Accounts
 
 **Category:** IT & Security
@@ -386,6 +394,7 @@ Provide secure access to required systems.
         subcategoryId: "marketing-campaign",
         owner: "Marketing Manager",
         lastUpdated: "2025-05-18",
+        status: "in-design",
         content: `# Process: Weekly Newsletter Production
 
 **Category:** Marketing & Communications
@@ -424,6 +433,7 @@ Deliver timely customer communications.
         subcategoryId: "ops-inventory",
         owner: "Operations Manager",
         lastUpdated: "2025-04-09",
+        status: "active",
         content: `# Process: Monthly Inventory Reconciliation
 
 **Category:** Operations & Logistics
@@ -462,6 +472,7 @@ Keep stock counts accurate for planning.
         subcategoryId: "product-release",
         owner: "Product Manager",
         lastUpdated: "2025-03-15",
+        status: "active",
         content: `# Process: Product Release Go-Live Checklist
 
 **Category:** Product & Engineering
@@ -500,6 +511,7 @@ Coordinate smooth release deployments.
         subcategoryId: "legal-contract",
         owner: "Legal Counsel",
         lastUpdated: "2025-02-22",
+        status: "inactive",
         content: `# Process: Standard Contract Review Workflow
 
 **Category:** Legal & Compliance
@@ -528,6 +540,18 @@ Ensure consistent legal risk evaluation.
     ],
   },
 ]
+
+const SOP_STATUS_LABELS: Record<SopStatus, string> = {
+  active: "Active",
+  "in-design": "In design",
+  inactive: "Inactive",
+}
+
+const SOP_STATUS_BADGE_STYLES: Record<SopStatus, string> = {
+  active: "border-emerald-200 bg-emerald-100 text-emerald-700",
+  "in-design": "border-amber-200 bg-amber-100 text-amber-700",
+  inactive: "border-slate-200 bg-slate-100 text-slate-600",
+}
 
 const OWNER_OPTIONS = [
   "Finance Manager",
@@ -2429,6 +2453,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       subcategoryId: firstSubcategoryId,
       owner,
       lastUpdated: today,
+      status: "in-design",
       content,
       processSettings: {
         owner,
@@ -2519,6 +2544,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       subcategoryId: firstSubcategoryId,
       owner,
       lastUpdated: today,
+      status: "in-design",
       content,
       processSettings: {
         owner,
@@ -2903,16 +2929,26 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                                       />
                                     ) : (
                                       <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedSOP(sop)
-                                            setViewMode("editor")
-                                          }}
-                                          className="w-full truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                        >
-                                          {sop.title}
-                                        </button>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSelectedSOP(sop)
+                                              setViewMode("editor")
+                                            }}
+                                            className="min-w-0 flex-1 truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                          >
+                                            {sop.title}
+                                          </button>
+                                          <span
+                                            className={cn(
+                                              "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                                              SOP_STATUS_BADGE_STYLES[sop.status],
+                                            )}
+                                          >
+                                            {SOP_STATUS_LABELS[sop.status]}
+                                          </span>
+                                        </div>
                                         <div className="truncate text-xs text-gray-500">
                                           {sop.owner} • Updated {sop.lastUpdated}
                                         </div>
