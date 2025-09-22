@@ -128,6 +128,64 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
           return undefined
         })()
 
+        const deadlineAbsoluteTimeValue = (() => {
+          if (!deadlineAbsoluteDate) {
+            return ""
+          }
+
+          const hours = deadlineAbsoluteDate.getHours().toString().padStart(2, "0")
+          const minutes = deadlineAbsoluteDate.getMinutes().toString().padStart(2, "0")
+
+          return `${hours}:${minutes}`
+        })()
+
+        const handleAbsoluteDateChange = (date: Date | undefined) => {
+          if (!date) {
+            handleChange("deadlineAbsolute", undefined)
+            return
+          }
+
+          const nextDate = new Date(date)
+
+          if (deadlineAbsoluteDate) {
+            nextDate.setHours(
+              deadlineAbsoluteDate.getHours(),
+              deadlineAbsoluteDate.getMinutes(),
+              0,
+              0,
+            )
+          }
+
+          handleChange("deadlineAbsolute", nextDate.toISOString())
+        }
+
+        const handleAbsoluteTimeChange = (value: string) => {
+          if (!value) {
+            if (!deadlineAbsoluteDate) {
+              handleChange("deadlineAbsolute", undefined)
+              return
+            }
+
+            const resetDate = new Date(deadlineAbsoluteDate)
+            resetDate.setHours(0, 0, 0, 0)
+            handleChange("deadlineAbsolute", resetDate.toISOString())
+            return
+          }
+
+          const [hoursPart, minutesPart] = value.split(":")
+          const hours = Number.parseInt(hoursPart ?? "", 10)
+          const minutes = Number.parseInt(minutesPart ?? "", 10)
+
+          if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+            return
+          }
+
+          const baseDate = deadlineAbsoluteDate ? new Date(deadlineAbsoluteDate) : new Date()
+          baseDate.setHours(hours, minutes, 0, 0)
+
+          handleChange("deadlineAbsolute", baseDate.toISOString())
+        }
+
         return (
           <div className="space-y-6">
             <div className="space-y-3">
@@ -227,6 +285,7 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                 <Label>Deadline rules</Label>
                 <RadioGroup
                   value={deadlineType}
+                  defaultValue="absolute"
                   onValueChange={(value) => handleChange("deadlineType", value)}
                 >
                   <div className="flex items-center space-x-2">
@@ -236,16 +295,29 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                     </Label>
                   </div>
                   {deadlineType === "absolute" ? (
-                    <div className="ml-6 mt-2">
+                    <div className="ml-6 mt-2 space-y-3">
                       <Calendar
                         mode="single"
                         defaultMonth={deadlineAbsoluteDate ?? new Date()}
                         selected={deadlineAbsoluteDate}
-                        onSelect={(date) =>
-                          handleChange("deadlineAbsolute", date ? date.toISOString() : undefined)
-                        }
+                        onSelect={handleAbsoluteDateChange}
                         className="rounded-lg border shadow-sm"
                       />
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="deadline-absolute-time"
+                          className="text-xs font-medium text-gray-500"
+                        >
+                          Due time
+                        </Label>
+                        <Input
+                          id="deadline-absolute-time"
+                          type="time"
+                          value={deadlineAbsoluteTimeValue}
+                          onChange={(event) => handleAbsoluteTimeChange(event.target.value)}
+                          className="w-40"
+                        />
+                      </div>
                     </div>
                   ) : null}
                   <div className="flex items-center space-x-2">
