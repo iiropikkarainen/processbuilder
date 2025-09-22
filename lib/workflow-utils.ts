@@ -34,8 +34,9 @@ export const createNode = ({
         ...baseNode,
         data: {
           ...baseNode.data,
-          dataSource: "manual",
-          sampleData: '{"example": "data"}',
+          startTriggerType: "schedule",
+          startTriggerScheduledAt: new Date().toISOString(),
+          startTriggerServiceDeskRequests: [],
         },
       }
     case "output":
@@ -128,6 +129,71 @@ const getDefaultDescription = (type: string): string => {
       return "Custom code execution"
     default:
       return "Workflow node"
+  }
+}
+
+const formatDateTime = (value: string | undefined): string | null => {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date)
+}
+
+export const describeInputStartTrigger = (data: NodeData): string | null => {
+  switch (data.startTriggerType) {
+    case "process": {
+      const category = data.startTriggerProcessCategory
+      const processName = data.startTriggerProcessId
+
+      if (category && processName) {
+        return `Starts after "${processName}" (${category}) completes`
+      }
+
+      if (processName) {
+        return `Starts after "${processName}" completes`
+      }
+
+      if (category) {
+        return `Starts after a process in ${category} completes`
+      }
+
+      return "Starts after a linked process completes"
+    }
+
+    case "serviceDesk": {
+      const requests = data.startTriggerServiceDeskRequests ?? []
+
+      if (requests.length === 0) {
+        return "Starts from matching service desk requests"
+      }
+
+      if (requests.length === 1) {
+        return `Starts from service desk request: ${requests[0]}`
+      }
+
+      return `Starts from service desk requests: ${requests.join(", ")}`
+    }
+
+    case "schedule":
+    default: {
+      const formatted = formatDateTime(data.startTriggerScheduledAt)
+
+      if (formatted) {
+        return `Scheduled for ${formatted}`
+      }
+
+      return "Scheduled start time"
+    }
   }
 }
 

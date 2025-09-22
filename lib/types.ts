@@ -42,8 +42,11 @@ export interface NodeData {
   required?: boolean
 
   // Input node properties
-  dataSource?: "manual" | "api" | "database" | "file"
-  sampleData?: string
+  startTriggerType?: "schedule" | "process" | "serviceDesk"
+  startTriggerScheduledAt?: string
+  startTriggerProcessCategory?: string
+  startTriggerProcessId?: string
+  startTriggerServiceDeskRequests?: string[]
 
   // Output node properties
   outputType?: "console" | "api" | "database" | "file"
