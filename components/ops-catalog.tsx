@@ -52,6 +52,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
 import WorkflowBuilder from "./workflow-builder"
 import { ProcessEditor, extractPlainText } from "./process-editor"
@@ -1164,28 +1172,18 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
           </div>
 
           {processNodes.length > 0 ? (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      Process node
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      Deadline
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      Output requirement
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      Assignment
-                    </th>
-                    <th scope="col" className="px-4 py-3 font-medium">
-                      Completion log
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[240px]">Process node</TableHead>
+                    <TableHead>Deadline</TableHead>
+                    <TableHead>Output requirement</TableHead>
+                    <TableHead>Assignment</TableHead>
+                    <TableHead className="w-[260px]">Completion log</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {processNodes.map((node) => {
                     const nodeData = node.data as NodeData | undefined
                     const nodeTasks = tasksByNode.get(node.id) ?? []
@@ -1195,76 +1193,91 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
                     const completionLog = buildCompletionLog(nodeTasks)
 
                     return (
-                      <tr key={node.id} className="align-top">
-                        <td className="px-4 py-4">
-                          <div className="font-medium text-gray-900">
-                            {node.data?.label || "Process step"}
+                      <TableRow key={node.id}>
+                        <TableCell className="align-top">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-sm font-semibold">
+                              {node.data?.label || "Process step"}
+                            </span>
+                            {node.data?.description ? (
+                              <p className="text-xs leading-relaxed text-muted-foreground">
+                                {node.data.description}
+                              </p>
+                            ) : null}
+                            {nodeTasks.length > 0 ? (
+                              <ul className="space-y-1 text-xs text-muted-foreground">
+                                {nodeTasks.map((task) => (
+                                  <li key={task.id} className="leading-snug">
+                                    • {task.text}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
                           </div>
-                          {node.data?.description ? (
-                            <div className="mt-1 text-xs text-gray-500">
-                              {node.data.description}
-                            </div>
-                          ) : null}
-                          {nodeTasks.length > 0 ? (
-                            <ul className="mt-2 space-y-1 text-xs text-gray-600">
-                              {nodeTasks.map((task) => (
-                                <li key={task.id} className="leading-snug">
-                                  • {task.text}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-700">
-                          <div>{deadlineInfo.label}</div>
-                          {nodeTasks.some((task) => task.due) ? (
-                            <div className="mt-2 space-y-1 text-xs text-gray-500">
-                              {nodeTasks
-                                .filter((task) => task.due)
-                                .map((task) => {
-                                  const parsed = parseDateValue(task.due)
-                                  const label = parsed ? formatDateTime(parsed) : task.due
-                                  return (
-                                    <div key={`due-${task.id}`}>Task due: {label}</div>
-                                  )
-                                })}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-700">
-                          <div>{outputInfo.label}</div>
-                          {outputInfo.notes.map((note, index) => (
-                            <div key={index} className="text-xs text-gray-500">
-                              {note}
-                            </div>
-                          ))}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-700">
-                          <div>{assignmentInfo.label}</div>
-                          {assignmentInfo.notes.map((note, index) => (
-                            <div key={index} className="text-xs text-gray-500">
-                              {note}
-                            </div>
-                          ))}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-700">
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <span className="font-medium">{deadlineInfo.label}</span>
+                            {nodeTasks.some((task) => task.due) ? (
+                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                                {nodeTasks
+                                  .filter((task) => task.due)
+                                  .map((task) => {
+                                    const parsed = parseDateValue(task.due)
+                                    const label = parsed ? formatDateTime(parsed) : task.due
+
+                                    return (
+                                      <span key={`due-${task.id}`}>
+                                        Task due: {label}
+                                      </span>
+                                    )
+                                  })}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <span className="font-medium">{outputInfo.label}</span>
+                            {outputInfo.notes.length > 0 ? (
+                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                                {outputInfo.notes.map((note, index) => (
+                                  <span key={index}>{note}</span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
+                          <div className="flex flex-col gap-1 text-sm">
+                            <span className="font-medium">{assignmentInfo.label}</span>
+                            {assignmentInfo.notes.length > 0 ? (
+                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                                {assignmentInfo.notes.map((note, index) => (
+                                  <span key={index}>{note}</span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        </TableCell>
+                        <TableCell className="align-top">
                           {completionLog.length > 0 ? (
-                            <ul className="space-y-1 text-xs text-gray-600">
+                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                               {completionLog.map((log, index) => (
-                                <li key={index}>{log}</li>
+                                <span key={index}>{log}</span>
                               ))}
-                            </ul>
+                            </div>
                           ) : (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-muted-foreground">
                               No completions recorded yet.
                             </span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           ) : (
             <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
