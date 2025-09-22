@@ -8,9 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useReactFlow } from "reactflow"
 import type { WorkflowNode } from "@/lib/types"
 import CodeEditor from "./code-editor"
 
@@ -22,8 +20,6 @@ interface NodeConfigPanelProps {
 
 export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeConfigPanelProps) {
   const [localData, setLocalData] = useState({ ...node.data })
-  const reactFlowInstance = useReactFlow()
-
   const handleChange = (key: string, value: any) => {
     setLocalData((prev) => ({
       ...prev,
@@ -110,23 +106,11 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
         )
 
       case "process": {
-        const otherNodes = reactFlowInstance
-          .getNodes()
-          .filter((workflowNode) => workflowNode.id !== node.id)
         const assignmentType = (localData.assignmentType ?? "user") as "user" | "role"
         const deadlineType = (localData.deadlineType ?? "relative") as "relative" | "absolute"
         const reminderEnabled = Boolean(localData.reminderEnabled)
-        const selectedDependencies = localData.predecessorNodeIds ?? []
         const deadlineRelativeUnit = (localData.deadlineRelativeUnit ?? "days") as "hours" | "days"
         const reminderUnit = (localData.reminderLeadTimeUnit ?? "hours") as "hours" | "days"
-
-        const toggleDependency = (dependencyId: string, shouldAdd: boolean) => {
-          const current = localData.predecessorNodeIds ?? []
-          const updated = shouldAdd
-            ? Array.from(new Set([...current, dependencyId]))
-            : current.filter((id) => id !== dependencyId)
-          handleChange("predecessorNodeIds", updated)
-        }
 
         return (
           <div className="space-y-6">
@@ -200,59 +184,6 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                   onChange={(event) => handleChange("approver", event.target.value)}
                   placeholder="Who signs off on completion?"
                 />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
-                  Dependencies &amp; Logic
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Control when this node unlocks and whether it should run based on prior outcomes.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Predecessor nodes</Label>
-                {otherNodes.length > 0 ? (
-                  <div className="space-y-2 rounded-md border border-dashed border-gray-200 p-3">
-                    {otherNodes.map((workflowNode) => {
-                      const checkboxId = `dependency-${workflowNode.id}`
-                      const displayLabel = workflowNode.data?.label || workflowNode.id
-                      const isChecked = selectedDependencies.includes(workflowNode.id)
-                      return (
-                        <div key={workflowNode.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={checkboxId}
-                            checked={isChecked}
-                            onCheckedChange={(checked) =>
-                              toggleDependency(workflowNode.id, checked === true)
-                            }
-                          />
-                          <Label htmlFor={checkboxId} className="font-normal">
-                            {displayLabel}
-                          </Label>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-500">No other nodes available to select yet.</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="conditionalLogic">Conditional logic</Label>
-                <Textarea
-                  id="conditionalLogic"
-                  value={localData.conditionalLogic || ""}
-                  onChange={(event) => handleChange("conditionalLogic", event.target.value)}
-                  placeholder='e.g., Only run if "Intake Review" = Approved'
-                />
-                <p className="text-xs text-gray-500">
-                  Document any rules like "Skip if quality check fails" or "Only run when a prior answer is Yes."
-                </p>
               </div>
             </div>
 
@@ -397,37 +328,6 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                     <SelectItem value="text">Text / form response</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="outputStructuredDataTemplate">Output instructions</Label>
-                <Textarea
-                  id="outputStructuredDataTemplate"
-                  value={localData.outputStructuredDataTemplate || ""}
-                  onChange={(event) => handleChange("outputStructuredDataTemplate", event.target.value)}
-                  placeholder="Outline what needs to be attached, linked, or captured."
-                />
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="validationRequireOutput"
-                  checked={localData.validationRequireOutput ?? false}
-                  onCheckedChange={(checked) => handleChange("validationRequireOutput", checked)}
-                />
-                <Label htmlFor="validationRequireOutput" className="font-normal">
-                  Require the output before marking this node complete
-                </Label>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="validationNotes">Validation rules</Label>
-                <Textarea
-                  id="validationNotes"
-                  value={localData.validationNotes || ""}
-                  onChange={(event) => handleChange("validationNotes", event.target.value)}
-                  placeholder='e.g., "Attach signed contract" or "Link must be accessible"'
-                />
               </div>
             </div>
           </div>
