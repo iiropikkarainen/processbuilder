@@ -298,6 +298,7 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                     <div className="ml-6 mt-2 space-y-3">
                       <Calendar
                         mode="single"
+                        captionLayout="dropdown-buttons"
                         defaultMonth={deadlineAbsoluteDate ?? new Date()}
                         selected={deadlineAbsoluteDate}
                         onSelect={handleAbsoluteDateChange}

@@ -535,7 +535,7 @@ export default function WorkflowBuilder({
         </div>
 
         {selectedNode && (
-          <div className="w-[28rem] border-l border-gray-200 p-4 bg-gray-50">
+          <div className="w-[calc(28rem+12px)] border-l border-gray-200 p-4 bg-gray-50">
             <NodeConfigPanel
               node={selectedNode as WorkflowNode}
               updateNodeData={updateNodeData}
