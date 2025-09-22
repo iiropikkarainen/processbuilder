@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Checkbox } from "@/components/ui/checkbox"
 import type { WorkflowNode } from "@/lib/types"
 import CodeEditor from "./code-editor"
 
@@ -31,39 +32,272 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
 
   const renderInputFields = () => {
     switch (node.type) {
-      case "input":
-        return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="dataSource">Data Source</Label>
-              <Select
-                value={localData.dataSource || "manual"}
-                onValueChange={(value) => handleChange("dataSource", value)}
-              >
-                <SelectTrigger id="dataSource">
-                  <SelectValue placeholder="Select data source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manual">Manual Input</SelectItem>
-                  <SelectItem value="api">API</SelectItem>
-                  <SelectItem value="database">Database</SelectItem>
-                  <SelectItem value="file">File Upload</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      case "input": {
+        const triggerType = (localData.startTriggerType ?? "schedule") as
+          | "schedule"
+          | "process"
+          | "serviceDesk"
 
-            <div className="space-y-2">
-              <Label htmlFor="sampleData">Sample Data (JSON)</Label>
-              <Textarea
-                id="sampleData"
-                value={localData.sampleData || ""}
-                onChange={(e) => handleChange("sampleData", e.target.value)}
-                className="h-32"
-                placeholder='{"key": "value"}'
-              />
-            </div>
-          </>
+        const scheduledDate = (() => {
+          const value = localData.startTriggerScheduledAt
+
+          if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? undefined : value
+          }
+
+          if (typeof value === "string" && value) {
+            const parsed = new Date(value)
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed
+          }
+
+          return undefined
+        })()
+
+        const scheduledTimeValue = (() => {
+          if (!scheduledDate) {
+            return ""
+          }
+
+          const hours = scheduledDate.getHours().toString().padStart(2, "0")
+          const minutes = scheduledDate.getMinutes().toString().padStart(2, "0")
+
+          return `${hours}:${minutes}`
+        })()
+
+        const handleScheduledDateChange = (date: Date | undefined) => {
+          if (!date) {
+            handleChange("startTriggerScheduledAt", undefined)
+            return
+          }
+
+          const nextDate = new Date(date)
+
+          if (scheduledDate) {
+            nextDate.setHours(
+              scheduledDate.getHours(),
+              scheduledDate.getMinutes(),
+              0,
+              0,
+            )
+          }
+
+          handleChange("startTriggerScheduledAt", nextDate.toISOString())
+        }
+
+        const handleScheduledTimeChange = (value: string) => {
+          if (!value) {
+            if (!scheduledDate) {
+              handleChange("startTriggerScheduledAt", undefined)
+              return
+            }
+
+            const resetDate = new Date(scheduledDate)
+            resetDate.setHours(0, 0, 0, 0)
+            handleChange("startTriggerScheduledAt", resetDate.toISOString())
+            return
+          }
+
+          const [hoursPart, minutesPart] = value.split(":")
+          const hours = Number.parseInt(hoursPart ?? "", 10)
+          const minutes = Number.parseInt(minutesPart ?? "", 10)
+
+          if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+            return
+          }
+
+          const baseDate = scheduledDate ? new Date(scheduledDate) : new Date()
+          baseDate.setHours(hours, minutes, 0, 0)
+
+          handleChange("startTriggerScheduledAt", baseDate.toISOString())
+        }
+
+        const processCatalog = [
+          {
+            value: "People Operations",
+            processes: [
+              { value: "New hire onboarding" },
+              { value: "Employee offboarding" },
+              { value: "Role change coordination" },
+            ],
+          },
+          {
+            value: "IT & Security",
+            processes: [
+              { value: "Access provisioning" },
+              { value: "Security review" },
+              { value: "Change management" },
+            ],
+          },
+          {
+            value: "Finance",
+            processes: [
+              { value: "Invoice processing" },
+              { value: "Expense approval" },
+              { value: "Budget review" },
+            ],
+          },
+        ] as const
+
+        const selectedCategory = processCatalog.find(
+          (category) => category.value === localData.startTriggerProcessCategory,
         )
+        const availableProcesses = selectedCategory?.processes ?? []
+
+        const serviceDeskOptions = [
+          "New hardware request",
+          "Access or permissions change",
+          "Incident triage",
+          "Software provisioning",
+        ] as const
+
+        const selectedServiceDeskRequests = Array.isArray(
+          localData.startTriggerServiceDeskRequests,
+        )
+          ? (localData.startTriggerServiceDeskRequests as string[])
+          : []
+
+        const toggleServiceDeskRequest = (request: string) => {
+          const nextRequests = selectedServiceDeskRequests.includes(request)
+            ? selectedServiceDeskRequests.filter((item) => item !== request)
+            : [...selectedServiceDeskRequests, request]
+
+          handleChange("startTriggerServiceDeskRequests", nextRequests)
+        }
+
+        return (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Start trigger</Label>
+              <RadioGroup
+                value={triggerType}
+                onValueChange={(value) => handleChange("startTriggerType", value)}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="schedule" id="trigger-schedule" />
+                    <Label htmlFor="trigger-schedule" className="font-normal">
+                      Start at a scheduled time
+                    </Label>
+                  </div>
+                  {triggerType === "schedule" ? (
+                    <div className="ml-6 space-y-3">
+                      <Calendar
+                        mode="single"
+                        captionLayout="dropdown-buttons"
+                        defaultMonth={scheduledDate ?? new Date()}
+                        selected={scheduledDate}
+                        onSelect={handleScheduledDateChange}
+                        className="rounded-lg border shadow-sm"
+                      />
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="trigger-schedule-time"
+                          className="text-xs font-medium text-gray-500"
+                        >
+                          Start time
+                        </Label>
+                        <Input
+                          id="trigger-schedule-time"
+                          type="time"
+                          value={scheduledTimeValue}
+                          onChange={(event) => handleScheduledTimeChange(event.target.value)}
+                          className="w-40"
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="process" id="trigger-process" />
+                    <Label htmlFor="trigger-process" className="font-normal">
+                      Start when another process completes
+                    </Label>
+                  </div>
+                  {triggerType === "process" ? (
+                    <div className="ml-6 space-y-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="trigger-process-category">Process category</Label>
+                        <Select
+                          value={localData.startTriggerProcessCategory || undefined}
+                          onValueChange={(value) => {
+                            handleChange("startTriggerProcessCategory", value)
+                            handleChange("startTriggerProcessId", undefined)
+                          }}
+                        >
+                          <SelectTrigger id="trigger-process-category">
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {processCatalog.map((category) => (
+                              <SelectItem key={category.value} value={category.value}>
+                                {category.value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="trigger-process-name">Process</Label>
+                        <Select
+                          value={localData.startTriggerProcessId || undefined}
+                          onValueChange={(value) => handleChange("startTriggerProcessId", value)}
+                          disabled={!selectedCategory}
+                        >
+                          <SelectTrigger id="trigger-process-name">
+                            <SelectValue
+                              placeholder={selectedCategory ? "Select a process" : "Choose a category first"}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableProcesses.map((process) => (
+                              <SelectItem key={process.value} value={process.value}>
+                                {process.value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="serviceDesk" id="trigger-service-desk" />
+                    <Label htmlFor="trigger-service-desk" className="font-normal">
+                      Start from a service desk request
+                    </Label>
+                  </div>
+                  {triggerType === "serviceDesk" ? (
+                    <div className="ml-6 space-y-3">
+                      <p className="text-xs text-gray-500">
+                        Choose which incoming requests should automatically kick off this process.
+                      </p>
+                      <div className="space-y-2">
+                        {serviceDeskOptions.map((option) => {
+                          const id = `service-desk-${option.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+
+                          return (
+                            <div key={option} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={id}
+                                checked={selectedServiceDeskRequests.includes(option)}
+                                onCheckedChange={() => toggleServiceDeskRequest(option)}
+                              />
+                              <Label htmlFor={id} className="font-normal">
+                                {option}
+                              </Label>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+        )
+      }
 
       case "output":
         return (

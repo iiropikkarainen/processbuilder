@@ -70,7 +70,7 @@ import {
 import WorkflowBuilder from "./workflow-builder"
 import { ProcessEditor, extractPlainText } from "./process-editor"
 import { cn } from "@/lib/utils"
-import { deadlinesAreEqual } from "@/lib/workflow-utils"
+import { deadlinesAreEqual, describeInputStartTrigger } from "@/lib/workflow-utils"
 import type {
   ProcessDeadline,
   Task,
@@ -1375,9 +1375,7 @@ const CalendarView = ({
   const inputDescription =
     primaryInput?.description ||
     "Add an input node in the Process Designer to describe what processors receive."
-  const inputSourceNote = primaryInput?.dataSource
-    ? `Source: ${primaryInput.dataSource}`
-    : null
+  const inputTriggerNote = primaryInput ? describeInputStartTrigger(primaryInput) : null
 
   const outputLabel = primaryOutput?.label || "Output"
   const outputDescription =
@@ -1645,8 +1643,8 @@ const CalendarView = ({
                 {inputLabel}
               </span>
               <p className="text-sm text-foreground">{inputDescription}</p>
-              {inputSourceNote ? (
-                <p className="text-xs text-muted-foreground">{inputSourceNote}</p>
+              {inputTriggerNote ? (
+                <p className="text-xs text-muted-foreground">Start trigger: {inputTriggerNote}</p>
               ) : null}
             </div>
             <div className="space-y-2">
