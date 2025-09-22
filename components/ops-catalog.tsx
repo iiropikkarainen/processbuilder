@@ -12,6 +12,7 @@ import {
   Calendar as CalendarIcon,
   ChevronDown,
   ChevronRight,
+  Copy,
   FileText,
   ListChecks,
   Maximize2,
@@ -24,6 +25,9 @@ import {
   Trash2,
 } from "lucide-react"
 
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -672,6 +676,31 @@ const ProcessView = ({
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
+type NodeStatus = "pending" | "in-progress" | "completed" | "unassigned"
+type NodeStatusFilter = NodeStatus | "all"
+
+const NODE_STATUS_FILTERS: { value: NodeStatusFilter; label: string }[] = [
+  { value: "all", label: "All steps" },
+  { value: "pending", label: "Upcoming" },
+  { value: "in-progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "unassigned", label: "Unassigned" },
+]
+
+const NODE_STATUS_LABELS: Record<NodeStatus, string> = {
+  pending: "Upcoming",
+  "in-progress": "In progress",
+  completed: "Completed",
+  unassigned: "Unassigned",
+}
+
+const NODE_STATUS_BADGE_STYLES: Record<NodeStatus, string> = {
+  pending: "border-amber-200 bg-amber-50 text-amber-700",
+  "in-progress": "border-sky-200 bg-sky-50 text-sky-700",
+  completed: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  unassigned: "border-slate-200 bg-slate-50 text-slate-600",
+}
+
 type DeadlineInfo = { label: string; absoluteDate: Date | null }
 type AssignmentInfo = { label: string; notes: string[] }
 type OutputRequirementInfo = { label: string; notes: string[] }
@@ -776,10 +805,41 @@ const buildCompletionLog = (tasks: Task[]): string[] =>
       return `${actor} • ${dateLabel}`
     })
 
+const determineNodeStatus = (
+  assignmentInfo: AssignmentInfo,
+  nodeTasks: Task[],
+  completionLog: string[],
+): NodeStatus => {
+  const normalizedAssignment = assignmentInfo.label?.trim().toLowerCase()
+
+  if (!normalizedAssignment || normalizedAssignment === "unassigned") {
+    return "unassigned"
+  }
+
+  if (completionLog.length > 0) {
+    return "completed"
+  }
+
+  if (nodeTasks.length > 0) {
+    const completedCount = nodeTasks.filter((task) => task.completed).length
+
+    if (completedCount === nodeTasks.length) {
+      return "completed"
+    }
+
+    if (completedCount > 0) {
+      return "in-progress"
+    }
+  }
+
+  return "pending"
+}
+
 interface CalendarViewProps {
   tasks: Task[]
   workflow: Workflow | null
   processName: string
+  onShowProcessOverview?: () => void
 }
 
 type CalendarEntry = {
@@ -789,7 +849,7 @@ type CalendarEntry = {
   dueDate: Date
 }
 
-const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
+const CalendarView = ({ tasks, workflow, processName, onShowProcessOverview }: CalendarViewProps) => {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
@@ -820,6 +880,67 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
 
     return map
   }, [tasks])
+
+  const [statusFilter, setStatusFilter] = useState<NodeStatusFilter>("all")
+
+  const processNodeDetails = useMemo(() => {
+    return processNodes.map((node) => {
+      const nodeData = node.data as NodeData | undefined
+      const nodeTasks = tasksByNode.get(node.id) ?? []
+      const completedCount = nodeTasks.filter((task) => task.completed).length
+      const totalTasks = nodeTasks.length
+      const progressPercent = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
+      const deadlineInfo = getDeadlineInfo(nodeData)
+      const assignmentInfo = getAssignmentInfo(nodeData)
+      const outputInfo = getOutputRequirementInfo(nodeData)
+      const completionLog = buildCompletionLog(nodeTasks)
+      const nodeStatus = determineNodeStatus(assignmentInfo, nodeTasks, completionLog)
+
+      return {
+        node,
+        nodeData,
+        nodeTasks,
+        completedCount,
+        totalTasks,
+        progressPercent,
+        deadlineInfo,
+        assignmentInfo,
+        outputInfo,
+        completionLog,
+        nodeStatus,
+      }
+    })
+  }, [processNodes, tasksByNode])
+
+  const statusCounts = useMemo(
+    () =>
+      processNodeDetails.reduce<Record<NodeStatus, number>>(
+        (acc, detail) => {
+          acc[detail.nodeStatus] += 1
+          return acc
+        },
+        { pending: 0, "in-progress": 0, completed: 0, unassigned: 0 },
+      ),
+    [processNodeDetails],
+  )
+
+  const filteredProcessNodes = useMemo(() => {
+    if (statusFilter === "all") {
+      return processNodeDetails
+    }
+
+    return processNodeDetails.filter((detail) => detail.nodeStatus === statusFilter)
+  }, [processNodeDetails, statusFilter])
+
+  const handleCopyNodeId = useCallback((nodeId: string) => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) {
+      return
+    }
+
+    navigator.clipboard
+      .writeText(nodeId)
+      .catch(() => undefined)
+  }, [])
 
   const calendarEntries = useMemo(() => {
     const entries: CalendarEntry[] = []
@@ -1130,162 +1251,246 @@ const CalendarView = ({ tasks, workflow, processName }: CalendarViewProps) => {
         </div>
       </div>
 
-      <div className="rounded-2xl border bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              Process
-            </div>
-            <div className="text-xl font-bold text-gray-900">
+      <Card>
+        <CardHeader className="gap-4 pb-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-xl">
               {processName || "Select a process"}
+            </CardTitle>
+            <CardDescription>
+              {processName
+                ? "View the same configuration shown in the Process Designer."
+                : "Choose a process to explore node assignments and expectations."}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {NODE_STATUS_FILTERS.map((filter) => {
+              const count =
+                filter.value === "all"
+                  ? processNodeDetails.length
+                  : statusCounts[filter.value]
+              const isActive = statusFilter === filter.value
+
+              return (
+                <Button
+                  key={filter.value}
+                  type="button"
+                  size="sm"
+                  variant={isActive ? "secondary" : "ghost"}
+                  className="rounded-full"
+                  onClick={() => setStatusFilter(filter.value)}
+                  disabled={processNodeDetails.length === 0 && filter.value !== "all"}
+                >
+                  {filter.label}
+                  <span className="ml-2 text-xs font-medium text-muted-foreground">
+                    {count}
+                  </span>
+                </Button>
+              )
+            })}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid gap-6 border-b border-border/60 px-6 py-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                {inputLabel}
+              </span>
+              <p className="text-sm text-foreground">{inputDescription}</p>
+              {inputSourceNote ? (
+                <p className="text-xs text-muted-foreground">{inputSourceNote}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                {outputLabel}
+              </span>
+              <p className="text-sm text-foreground">{outputDescription}</p>
+              {outputFormatNote ? (
+                <p className="text-xs text-muted-foreground">{outputFormatNote}</p>
+              ) : null}
             </div>
           </div>
-          <div className="text-xs text-gray-500">
-            View the same configuration shown in the Process Designer.
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {inputLabel}
-            </div>
-            <p className="mt-1 text-sm text-gray-700">{inputDescription}</p>
-            {inputSourceNote ? (
-              <p className="mt-1 text-xs text-gray-500">{inputSourceNote}</p>
-            ) : null}
-          </div>
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-              {outputLabel}
-            </div>
-            <p className="mt-1 text-sm text-gray-700">{outputDescription}</p>
-            {outputFormatNote ? (
-              <p className="mt-1 text-xs text-gray-500">{outputFormatNote}</p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <div className="text-sm font-semibold text-gray-700">
-            Process nodes and task expectations
-          </div>
-
-          {processNodes.length > 0 ? (
-            <div className="mt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[240px]">Process node</TableHead>
-                    <TableHead>Deadline</TableHead>
-                    <TableHead>Output requirement</TableHead>
-                    <TableHead>Assignment</TableHead>
-                    <TableHead className="w-[260px]">Completion log</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {processNodes.map((node) => {
-                    const nodeData = node.data as NodeData | undefined
-                    const nodeTasks = tasksByNode.get(node.id) ?? []
-                    const deadlineInfo = getDeadlineInfo(nodeData)
-                    const assignmentInfo = getAssignmentInfo(nodeData)
-                    const outputInfo = getOutputRequirementInfo(nodeData)
-                    const completionLog = buildCompletionLog(nodeTasks)
-
-                    return (
-                      <TableRow key={node.id}>
-                        <TableCell className="align-top">
-                          <div className="flex flex-col gap-2">
-                            <span className="text-sm font-semibold">
-                              {node.data?.label || "Process step"}
-                            </span>
-                            {node.data?.description ? (
-                              <p className="text-xs leading-relaxed text-muted-foreground">
-                                {node.data.description}
-                              </p>
-                            ) : null}
-                            {nodeTasks.length > 0 ? (
-                              <ul className="space-y-1 text-xs text-muted-foreground">
-                                {nodeTasks.map((task) => (
-                                  <li key={task.id} className="leading-snug">
-                                    • {task.text}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-col gap-1 text-sm">
-                            <span className="font-medium">{deadlineInfo.label}</span>
-                            {nodeTasks.some((task) => task.due) ? (
-                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                                {nodeTasks
-                                  .filter((task) => task.due)
-                                  .map((task) => {
-                                    const parsed = parseDateValue(task.due)
-                                    const label = parsed ? formatDateTime(parsed) : task.due
-
-                                    return (
-                                      <span key={`due-${task.id}`}>
-                                        Task due: {label}
-                                      </span>
-                                    )
-                                  })}
-                              </div>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-col gap-1 text-sm">
-                            <span className="font-medium">{outputInfo.label}</span>
-                            {outputInfo.notes.length > 0 ? (
-                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                                {outputInfo.notes.map((note, index) => (
-                                  <span key={index}>{note}</span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          <div className="flex flex-col gap-1 text-sm">
-                            <span className="font-medium">{assignmentInfo.label}</span>
-                            {assignmentInfo.notes.length > 0 ? (
-                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                                {assignmentInfo.notes.map((note, index) => (
-                                  <span key={index}>{note}</span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="align-top">
-                          {completionLog.length > 0 ? (
-                            <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                              {completionLog.map((log, index) => (
-                                <span key={index}>{log}</span>
-                              ))}
+          {filteredProcessNodes.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/60">
+                  <TableHead className="w-[260px] text-[11px] uppercase tracking-wide">
+                    Process node
+                  </TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wide">
+                    Deadline
+                  </TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wide">
+                    Output requirement
+                  </TableHead>
+                  <TableHead className="text-[11px] uppercase tracking-wide">
+                    Assignment
+                  </TableHead>
+                  <TableHead className="w-[260px] text-right text-[11px] uppercase tracking-wide">
+                    Completion log
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredProcessNodes.map((detail) => (
+                  <TableRow key={detail.node.id} className="border-border/60">
+                    <TableCell className="align-top">
+                      <div className="flex flex-col gap-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 space-y-1">
+                              <span className="text-sm font-semibold text-foreground">
+                                {detail.node.data?.label || "Process step"}
+                              </span>
+                              {detail.node.data?.description ? (
+                                <p className="text-xs leading-relaxed text-muted-foreground">
+                                  {detail.node.data.description}
+                                </p>
+                              ) : null}
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              No completions recorded yet.
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "shrink-0 whitespace-nowrap border px-2.5 py-0.5 text-xs font-medium",
+                                  NODE_STATUS_BADGE_STYLES[detail.nodeStatus],
+                                )}
+                              >
+                                {NODE_STATUS_LABELS[detail.nodeStatus]}
+                              </Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="rounded-full p-2 text-muted-foreground hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                    aria-label={`Node actions for ${detail.node.data?.label || detail.node.id}`}
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                  {onShowProcessOverview ? (
+                                    <DropdownMenuItem
+                                      onSelect={(event) => {
+                                        event.preventDefault()
+                                        onShowProcessOverview()
+                                      }}
+                                    >
+                                      <ListChecks className="mr-2 h-4 w-4" /> View in process table
+                                    </DropdownMenuItem>
+                                  ) : null}
+                                  <DropdownMenuItem
+                                    onSelect={(event) => {
+                                      event.preventDefault()
+                                      handleCopyNodeId(detail.node.id)
+                                    }}
+                                  >
+                                    <Copy className="mr-2 h-4 w-4" /> Copy node ID
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                              {detail.completedCount}/{detail.totalTasks || 0} tasks done
                             </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                              ID: {detail.node.id}
+                            </span>
+                            {detail.totalTasks > 0 ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-medium text-muted-foreground">
+                                {detail.progressPercent}% complete
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        {detail.nodeTasks.length > 0 ? (
+                          <div className="rounded-lg border border-dashed border-border/60 bg-muted/20 p-3">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                              Linked tasks
+                            </div>
+                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              {detail.nodeTasks.map((task) => (
+                                <li key={task.id} className="leading-snug">
+                                  • {task.text}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex flex-col gap-2 text-sm text-foreground">
+                        <span className="font-medium">{detail.deadlineInfo.label}</span>
+                        {detail.nodeTasks.some((task) => task.due) ? (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            {detail.nodeTasks
+                              .filter((task) => task.due)
+                              .map((task) => {
+                                const parsed = parseDateValue(task.due)
+                                const label = parsed ? formatDateTime(parsed) : task.due
+
+                                return <span key={`due-${task.id}`}>Task due: {label}</span>
+                              })}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex flex-col gap-2 text-sm text-foreground">
+                        <span className="font-medium">{detail.outputInfo.label}</span>
+                        {detail.outputInfo.notes.length > 0 ? (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            {detail.outputInfo.notes.map((note, index) => (
+                              <span key={index}>{note}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <div className="flex flex-col gap-2 text-sm text-foreground">
+                        <span className="font-medium">{detail.assignmentInfo.label}</span>
+                        {detail.assignmentInfo.notes.length > 0 ? (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            {detail.assignmentInfo.notes.map((note, index) => (
+                              <span key={index}>{note}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="align-top text-right">
+                      {detail.completionLog.length > 0 ? (
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {detail.completionLog.map((log, index) => (
+                            <span key={index} className="block">
+                              {log}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          No completions recorded yet.
+                        </span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
-              Configure process nodes in the Process Designer to populate the Processor Portal.
+            <div className="flex h-40 items-center justify-center px-6 text-sm text-muted-foreground">
+              {processNodeDetails.length
+                ? "No process nodes match the current filters."
+                : "Configure process nodes in the Process Designer to populate the Processor Portal."}
             </div>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -2859,6 +3064,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                     tasks={tasks}
                     workflow={currentWorkflow}
                     processName={selectedSOP?.title ?? ""}
+                    onShowProcessOverview={() => setViewMode("process")}
                   />
                 </div>
                 <div
