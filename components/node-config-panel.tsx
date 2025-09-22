@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { WorkflowNode } from "@/lib/types"
@@ -107,10 +108,25 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
 
       case "process": {
         const assignmentType = (localData.assignmentType ?? "user") as "user" | "role"
-        const deadlineType = (localData.deadlineType ?? "relative") as "relative" | "absolute"
+        const deadlineType = (localData.deadlineType ?? "absolute") as "relative" | "absolute"
         const reminderEnabled = Boolean(localData.reminderEnabled)
         const deadlineRelativeUnit = (localData.deadlineRelativeUnit ?? "days") as "hours" | "days"
         const reminderUnit = (localData.reminderLeadTimeUnit ?? "hours") as "hours" | "days"
+
+        const deadlineAbsoluteDate = (() => {
+          const value = localData.deadlineAbsolute
+
+          if (value instanceof Date) {
+            return Number.isNaN(value.getTime()) ? undefined : value
+          }
+
+          if (typeof value === "string" && value) {
+            const parsed = new Date(value)
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed
+          }
+
+          return undefined
+        })()
 
         return (
           <div className="space-y-6">
@@ -214,6 +230,25 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                   onValueChange={(value) => handleChange("deadlineType", value)}
                 >
                   <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="absolute" id="deadline-absolute" />
+                    <Label htmlFor="deadline-absolute" className="font-normal">
+                      Absolute calendar deadline
+                    </Label>
+                  </div>
+                  {deadlineType === "absolute" ? (
+                    <div className="ml-6 mt-2">
+                      <Calendar
+                        mode="single"
+                        defaultMonth={deadlineAbsoluteDate ?? new Date()}
+                        selected={deadlineAbsoluteDate}
+                        onSelect={(date) =>
+                          handleChange("deadlineAbsolute", date ? date.toISOString() : undefined)
+                        }
+                        className="rounded-lg border shadow-sm"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="flex items-center space-x-2">
                     <RadioGroupItem value="relative" id="deadline-relative" />
                     <Label htmlFor="deadline-relative" className="font-normal">
                       Relative to a predecessor
@@ -242,21 +277,6 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                         </SelectContent>
                       </Select>
                       <span className="text-xs text-gray-500">after dependencies finish</span>
-                    </div>
-                  ) : null}
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="absolute" id="deadline-absolute" />
-                    <Label htmlFor="deadline-absolute" className="font-normal">
-                      Absolute calendar deadline
-                    </Label>
-                  </div>
-                  {deadlineType === "absolute" ? (
-                    <div className="ml-6 mt-2">
-                      <Input
-                        type="datetime-local"
-                        value={localData.deadlineAbsolute || ""}
-                        onChange={(event) => handleChange("deadlineAbsolute", event.target.value)}
-                      />
                     </div>
                   ) : null}
                 </RadioGroup>
