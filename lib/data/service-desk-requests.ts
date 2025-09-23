@@ -20,6 +20,7 @@ export interface ServiceDeskRequest {
   priority: ServiceDeskRequestPriority
   assignedTo?: string
   slaDueAt?: string
+  linkedProcessId?: string
 }
 
 export interface ServiceDeskRequestCategory {
