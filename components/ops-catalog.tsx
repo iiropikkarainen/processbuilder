@@ -1871,23 +1871,20 @@ const ProcessSettingsView = ({ settings, onChange }: ProcessSettingsViewProps) =
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Process owner</h3>
           <p className="text-xs text-gray-500">
-            Select who is accountable for the execution and maintenance of this process.
+            Enter the email address of the person accountable for the execution and maintenance of
+            this process.
           </p>
         </div>
         <div className="w-full max-w-xs space-y-2">
-          <Label htmlFor="process-owner">Owner</Label>
-          <Select value={settings.owner} onValueChange={handleOwnerChange}>
-            <SelectTrigger id="process-owner">
-              <SelectValue placeholder="Select owner" />
-            </SelectTrigger>
-            <SelectContent>
-              {OWNER_OPTIONS.map((owner) => (
-                <SelectItem key={owner} value={owner}>
-                  {owner}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor="process-owner">Owner email</Label>
+          <Input
+            id="process-owner"
+            type="email"
+            autoComplete="email"
+            placeholder="owner@example.com"
+            value={settings.owner}
+            onChange={(event) => handleOwnerChange(event.target.value)}
+          />
         </div>
       </section>
 
