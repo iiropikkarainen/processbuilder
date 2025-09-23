@@ -69,6 +69,8 @@ const STATUS_OPTIONS: ServiceDeskRequestStatus[] = [
 
 const PRIORITY_OPTIONS: ServiceDeskRequest["priority"][] = ["High", "Medium", "Low"]
 
+const NO_LINKED_PROCESS_VALUE = "__no_linked_process__"
+
 function formatDateTimeForInput(value: string) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) {
@@ -449,12 +451,17 @@ export default function ServiceDeskRequestDetailPage() {
                 </div>
                 <div className="space-y-2 sm:col-span-2 lg:col-span-3">
                   <Label htmlFor="linked-process">Linked process</Label>
-                  <Select value={linkedProcessId} onValueChange={(value) => setLinkedProcessId(value)}>
+                  <Select
+                    value={linkedProcessId || NO_LINKED_PROCESS_VALUE}
+                    onValueChange={(value) =>
+                      setLinkedProcessId(value === NO_LINKED_PROCESS_VALUE ? "" : value)
+                    }
+                  >
                     <SelectTrigger id="linked-process">
                       <SelectValue placeholder="Link to a process" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No linked process</SelectItem>
+                      <SelectItem value={NO_LINKED_PROCESS_VALUE}>No linked process</SelectItem>
                       {sortedProcesses.map((process) => (
                         <SelectItem key={process.id} value={process.id}>
                           <div className="flex flex-col">
