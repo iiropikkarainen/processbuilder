@@ -50,6 +50,7 @@ export const createNode = ({
           ...baseNode.data,
           outputCompletionType: "markDone",
           outputAlertChannels: [],
+          outputMarkServiceDeskDone: false,
         },
       }
     case "process":
@@ -224,17 +225,21 @@ const formatList = (items: string[]): string => {
 }
 
 export const describeOutputCompletion = (data: NodeData): string => {
+  const serviceDeskSuffix = data.outputMarkServiceDeskDone
+    ? " and marks linked service desk requests as done"
+    : ""
+
   if (data.outputCompletionType === "scheduled") {
     const formatted = formatDateTime(data.outputCompletionScheduledAt)
 
     if (formatted) {
-      return `Ends at ${formatted}`
+      return `Ends at ${formatted}${serviceDeskSuffix}`
     }
 
-    return "Ends at scheduled time"
+    return `Ends at scheduled time${serviceDeskSuffix}`
   }
 
-  return "Stops when final process is marked as done"
+  return `Stops when final process is marked as done${serviceDeskSuffix}`
 }
 
 export const describeOutputAlerts = (

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,9 +18,17 @@ interface NodeConfigPanelProps {
   node: WorkflowNode
   updateNodeData: (nodeId: string, data: any) => void
   onClose: () => void
+  inputStartTriggerType?: "schedule" | "process" | "serviceDesk"
+  inputServiceDeskRequests?: string[]
 }
 
-export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeConfigPanelProps) {
+export default function NodeConfigPanel({
+  node,
+  updateNodeData,
+  onClose,
+  inputStartTriggerType,
+  inputServiceDeskRequests = [],
+}: NodeConfigPanelProps) {
   const [localData, setLocalData] = useState({ ...node.data })
   const handleChange = (key: string, value: any) => {
     setLocalData((prev) => ({
@@ -29,6 +37,28 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
     }))
     updateNodeData(node.id, { [key]: value })
   }
+
+  useEffect(() => {
+    if (node.type !== "output") {
+      return
+    }
+
+    const serviceDeskActive = inputStartTriggerType === "serviceDesk"
+
+    if (!serviceDeskActive && localData.outputMarkServiceDeskDone) {
+      setLocalData((prev) => ({
+        ...prev,
+        outputMarkServiceDeskDone: false,
+      }))
+      updateNodeData(node.id, { outputMarkServiceDeskDone: false })
+    }
+  }, [
+    inputStartTriggerType,
+    localData.outputMarkServiceDeskDone,
+    node.id,
+    node.type,
+    updateNodeData,
+  ])
 
   const renderInputFields = () => {
     switch (node.type) {
@@ -304,6 +334,26 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
           | "markDone"
           | "scheduled"
 
+        const markServiceDeskDone = Boolean(localData.outputMarkServiceDeskDone)
+        const serviceDeskEnabled = inputStartTriggerType === "serviceDesk"
+        const serviceDeskRequests = inputServiceDeskRequests
+        const serviceDeskSummary = (() => {
+          if (!serviceDeskEnabled) {
+            return "the originating service desk request"
+          }
+
+          if (serviceDeskRequests.length === 0) {
+            return "the originating service desk request"
+          }
+
+          if (serviceDeskRequests.length === 1) {
+            return `the "${serviceDeskRequests[0]}" service desk request`
+          }
+
+          return "all linked service desk requests"
+        })()
+        const serviceDeskToggleId = `output-service-desk-done-${node.id}`
+
         const scheduledDate = (() => {
           const value = localData.outputCompletionScheduledAt
 
@@ -451,6 +501,33 @@ export default function NodeConfigPanel({ node, updateNodeData, onClose }: NodeC
                 </div>
               </RadioGroup>
             </div>
+
+            {serviceDeskEnabled ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <Label
+                      htmlFor={serviceDeskToggleId}
+                      className="text-sm font-semibold text-emerald-900"
+                    >
+                      Service desk completion
+                    </Label>
+                    <p className="text-xs text-emerald-700">
+                      When this output completes, {serviceDeskSummary} is marked as
+                      done in the service desk.
+                    </p>
+                  </div>
+                  <Switch
+                    id={serviceDeskToggleId}
+                    checked={markServiceDeskDone}
+                    onCheckedChange={(checked) =>
+                      handleChange("outputMarkServiceDeskDone", checked)
+                    }
+                    aria-label="Mark originating service desk ticket as done"
+                  />
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label>Send alert</Label>

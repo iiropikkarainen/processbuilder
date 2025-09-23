@@ -324,6 +324,14 @@ export default function WorkflowBuilder({
     onWorkflowUpdate({ nodes, edges })
   }, [nodes, edges, onWorkflowUpdate])
 
+  const inputNode = nodes.find((node) => node.type === "input")
+  const inputNodeData = (inputNode?.data ?? undefined) as NodeData | undefined
+  const inputStartTriggerType = inputNodeData?.startTriggerType
+  const inputServiceDeskRequestData = inputNodeData?.startTriggerServiceDeskRequests
+  const inputServiceDeskRequests: string[] = Array.isArray(inputServiceDeskRequestData)
+    ? [...inputServiceDeskRequestData]
+    : []
+
   useEffect(() => {
     if (!onLastProcessDeadlineChange) {
       return
@@ -540,6 +548,8 @@ export default function WorkflowBuilder({
               node={selectedNode as WorkflowNode}
               updateNodeData={updateNodeData}
               onClose={() => setSelectedNode(null)}
+              inputStartTriggerType={inputStartTriggerType}
+              inputServiceDeskRequests={inputServiceDeskRequests}
             />
           </div>
         )}
