@@ -54,6 +54,7 @@ export interface NodeData {
   outputCompletionType?: OutputCompletionType
   outputCompletionScheduledAt?: string
   outputAlertChannels?: OutputAlertChannel[]
+  outputMarkServiceDeskDone?: boolean
 
   // Process node properties
   assignmentType?: "user" | "role"
