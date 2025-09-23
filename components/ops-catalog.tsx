@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   Calendar as CalendarIcon,
   CheckCircle2,
@@ -2100,6 +2101,98 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     Record<string, OutputSubmission | undefined>
   >({})
 
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const updateUrlForSelectedSop = useCallback(
+    (sop: Sop | null) => {
+      const currentProcessId = searchParams.get("processId")
+      const nextProcessId = sop?.id ?? null
+
+      if (currentProcessId === nextProcessId || (!currentProcessId && !nextProcessId)) {
+        return
+      }
+
+      const params = new URLSearchParams(searchParams)
+      if (nextProcessId) {
+        params.set("processId", nextProcessId)
+      } else {
+        params.delete("processId")
+      }
+
+      const queryString = params.toString()
+      const nextUrl = queryString ? `${pathname}?${queryString}` : pathname
+      router.replace(nextUrl, { scroll: false })
+    },
+    [pathname, router, searchParams],
+  )
+
+  const handleSelectSop = useCallback(
+    (sop: Sop) => {
+      setSelectedSOP(sop)
+      setViewMode("editor")
+      updateUrlForSelectedSop(sop)
+    },
+    [updateUrlForSelectedSop],
+  )
+
+  const clearSelectedSop = useCallback(() => {
+    setSelectedSOP(null)
+    setViewMode("editor")
+    updateUrlForSelectedSop(null)
+  }, [updateUrlForSelectedSop])
+
+  const findSopById = useCallback(
+    (id: string) => {
+      for (const category of data) {
+        const sop = category.sops.find((item) => item.id === id)
+        if (sop) {
+          return { sop, categoryId: category.id }
+        }
+      }
+      return null
+    },
+    [data],
+  )
+
+  const processIdFromParams = searchParams.get("processId")
+
+  useEffect(() => {
+    if (!processIdFromParams) {
+      if (selectedSOP) {
+        clearSelectedSop()
+      }
+      return
+    }
+
+    if (selectedSOP?.id === processIdFromParams) {
+      return
+    }
+
+    const match = findSopById(processIdFromParams)
+    if (match) {
+      handleSelectSop(match.sop)
+      setExpanded((prev) => {
+        if (prev[match.categoryId]) {
+          return prev
+        }
+        return { ...prev, [match.categoryId]: true }
+      })
+      return
+    }
+
+    if (selectedSOP) {
+      clearSelectedSop()
+    }
+  }, [
+    processIdFromParams,
+    selectedSOP,
+    clearSelectedSop,
+    findSopById,
+    handleSelectSop,
+  ])
+
   const handleWorkflowUpdate = useCallback((workflow: Workflow) => {
     setCurrentWorkflow(workflow)
   }, [])
@@ -2288,7 +2381,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     }
 
     if (containsSelected) {
-      setSelectedSOP(null)
+      clearSelectedSop()
     }
   }
 
@@ -2471,8 +2564,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setProcessViewerPromptTitle("")
     setProcessViewerPrompt("")
     setSelectedCategoryForViewerPrompt(resolvedCategoryId)
-    setSelectedSOP(newSop)
-    setViewMode("editor")
+    handleSelectSop(newSop)
   }
 
   const handleDeleteSop = (categoryId: string, sopId: string) => {
@@ -2490,7 +2582,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     )
 
     if (selectedSOP?.id === sopId) {
-      setSelectedSOP(null)
+      clearSelectedSop()
     }
 
     if (editingSop?.id === sopId) {
@@ -2821,10 +2913,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                                         <div className="flex flex-wrap items-center gap-2">
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              setSelectedSOP(sop)
-                                              setViewMode("editor")
-                                            }}
+                                            onClick={() => handleSelectSop(sop)}
                                             className="min-w-0 flex-1 truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
                                           >
                                             {sop.title}
