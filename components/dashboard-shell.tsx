@@ -33,6 +33,9 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,
@@ -40,7 +43,13 @@ import {
 } from "@/components/ui/sidebar"
 import type { LucideIcon } from "lucide-react"
 
-const navMain: { title: string; url: string; icon: LucideIcon; badge?: string }[] = [
+const navMain: {
+  title: string
+  url: string
+  icon: LucideIcon
+  badge?: string
+  children?: { title: string; url: string }[]
+}[] = [
   {
     title: "Overview",
     url: "/overview",
@@ -56,6 +65,12 @@ const navMain: { title: string; url: string; icon: LucideIcon; badge?: string }[
     title: "Service Desk",
     url: "/servicedesk",
     icon: LifeBuoy,
+    children: [
+      {
+        title: "Requests",
+        url: "/servicedesk/requests",
+      },
+    ],
   },
   {
     title: "Workflow Builder",
@@ -116,6 +131,14 @@ const teams: { name: string; plan: string; initials: string; url: string }[] = [
 function DashboardSidebar() {
   const pathname = usePathname()
 
+  const isMatchingPath = (target: string) => {
+    if (target === "/") {
+      return pathname === "/"
+    }
+
+    return pathname === target || pathname.startsWith(`${target}/`)
+  }
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -140,25 +163,40 @@ function DashboardSidebar() {
           <SidebarGroupLabel>Workspace</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navMain.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={item.url === pathname}
-                    tooltip={item.title}
-                  >
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                  {item.badge ? (
-                    <SidebarMenuBadge className="bg-sidebar-accent text-sidebar-accent-foreground">
-                      {item.badge}
-                    </SidebarMenuBadge>
-                  ) : null}
-                </SidebarMenuItem>
-              ))}
+              {navMain.map((item) => {
+                const isChildGroupActive = item.children?.some((child) => isMatchingPath(child.url)) ?? false
+                const isActive = isMatchingPath(item.url) || isChildGroupActive
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={item.title}>
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {item.badge ? (
+                      <SidebarMenuBadge className="bg-sidebar-accent text-sidebar-accent-foreground">
+                        {item.badge}
+                      </SidebarMenuBadge>
+                    ) : null}
+                    {item.children ? (
+                      <SidebarMenuSub>
+                        {item.children.map((child) => {
+                          const isChildActive = isMatchingPath(child.url)
+                          return (
+                            <SidebarMenuSubItem key={child.title}>
+                              <SidebarMenuSubButton asChild size="sm" isActive={isChildActive}>
+                                <Link href={child.url}>{child.title}</Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          )
+                        })}
+                      </SidebarMenuSub>
+                    ) : null}
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

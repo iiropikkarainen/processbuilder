@@ -23,79 +23,28 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
+import {
+  SERVICE_DESKS,
+  type ServiceDesk,
+  type ServiceDeskId,
+} from "@/lib/data/service-desks"
+import type { ServiceDeskRequest } from "@/lib/data/service-desk-requests"
+import { addStoredRequest } from "@/lib/service-desk-storage"
 
-const SERVICE_DESKS = [
-  {
-    id: "hr",
-    name: "HR Service Desk",
-    purpose: "Employee requests, onboarding, benefits, and compliance.",
-    samples: [
-      "Request employment verification letter.",
-      "Submit new hire onboarding form.",
-      "Update personal details (address, emergency contact).",
-      "Apply for parental leave.",
-    ],
-  },
-  {
-    id: "finance",
-    name: "Finance & Accounting Service Desk",
-    purpose: "Payments, expenses, payroll, and reporting.",
-    samples: [
-      "Submit reimbursement for client dinner.",
-      "Request approval for vendor payment.",
-      "Generate quarterly expense report.",
-      "Correct error in payroll.",
-    ],
-  },
-  {
-    id: "it",
-    name: "IT Service Desk",
-    purpose: "Tech support, access management, and security.",
-    samples: [
-      "Reset laptop password.",
-      "Request access to Salesforce.",
-      "Report phishing email.",
-      "Install VPN on new device.",
-    ],
-  },
-  {
-    id: "legal",
-    name: "Legal & Compliance Service Desk",
-    purpose: "Contracts, risk, and compliance checks.",
-    samples: [
-      "Review and approve NDA with vendor.",
-      "Request contract template for new client.",
-      "Submit data privacy concern.",
-      "Report incident for compliance review.",
-    ],
-  },
-  {
-    id: "sales",
-    name: "Sales & Customer Success Service Desk",
-    purpose: "Client operations, deal support, and renewals.",
-    samples: [
-      "Create proposal for ACME Corp.",
-      "Request pricing approval for enterprise discount.",
-      "Log client complaint about onboarding.",
-      "Initiate renewal workflow for key account.",
-    ],
-  },
-  {
-    id: "operations",
-    name: "Operations & Facilities Service Desk",
-    purpose: "Office management, logistics, and supplies.",
-    samples: [
-      "Order new ergonomic chair.",
-      "Schedule courier pickup for client shipment.",
-      "Report Wi-Fi outage in office.",
-      "Book meeting space for board meeting.",
-    ],
-  },
-] as const
+function generateTicketId(deskId: ServiceDeskId) {
+  const timestamp = Date.now().toString(36).toUpperCase()
+  return `REQ-${deskId.toUpperCase()}-${timestamp}`
+}
 
-type ServiceDeskId = (typeof SERVICE_DESKS)[number]["id"]
+function buildRequestTitle(details: string) {
+  const trimmed = details.trim()
+  if (!trimmed) {
+    return "New service request"
+  }
 
-type ServiceDesk = (typeof SERVICE_DESKS)[number]
+  const firstLine = trimmed.split(/\n|\./)[0] ?? trimmed
+  return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine
+}
 
 export default function ServiceDeskPage() {
   const [selectedDeskId, setSelectedDeskId] = useState<ServiceDeskId>(SERVICE_DESKS[0].id)
@@ -119,7 +68,22 @@ export default function ServiceDeskPage() {
       return
     }
 
-    setStatusMessage(`Request drafted for the ${selectedDesk.name}. We'll route it to the right team.`)
+    const requestPayload: ServiceDeskRequest = {
+      id: generateTicketId(selectedDesk.id),
+      deskId: selectedDesk.id,
+      title: buildRequestTitle(requestDetails),
+      summary: requestDetails.trim(),
+      requestedBy: "Olivia Martin",
+      submittedAt: new Date().toISOString(),
+      status: "New",
+      priority: "Medium",
+    }
+
+    addStoredRequest(requestPayload)
+
+    setStatusMessage(
+      `Request ${requestPayload.id} drafted for the ${selectedDesk.name}. Track it from the Requests page.`,
+    )
     setRequestDetails("")
   }
 
