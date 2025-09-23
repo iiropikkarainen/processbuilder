@@ -126,9 +126,18 @@ export default function ServiceDeskRequestsPage() {
         return category
       }
 
+      const deduped = new Map<string, ServiceDeskRequest>()
+      for (const request of category.requests) {
+        deduped.set(request.id, request)
+      }
+
+      for (const request of storedForDesk) {
+        deduped.set(request.id, request)
+      }
+
       return {
         ...category,
-        requests: sortRequests([...storedForDesk, ...category.requests]),
+        requests: sortRequests(Array.from(deduped.values())),
       }
     })
   }, [storedRequests])
