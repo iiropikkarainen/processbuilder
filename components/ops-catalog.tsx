@@ -821,11 +821,11 @@ const getAssignmentInfo = (data?: NodeData | null): AssignmentInfo => {
 
 const getOutputRequirementInfo = (data?: NodeData | null): OutputRequirementInfo => {
   const requirementMap: Record<OutputRequirementType | undefined, string> = {
-    markDone: "Mark step complete",
+    markDone: "Status",
     file: "Upload supporting file",
     link: "Provide link or URL",
     text: "Submit text update",
-    undefined: "Mark step complete",
+    undefined: "Status",
   }
 
   const requirementType = data?.outputRequirementType ?? "markDone"
@@ -1093,10 +1093,13 @@ const OutputRequirementAction = ({
     }
   }
 
+  const actionForm = renderActionForm()
+  const labelText = info.label
+
   return (
     <div className={cn("text-sm text-foreground", variant === "card" ? "space-y-3" : "space-y-2")}
     >
-      <span className="font-medium">{info.label}</span>
+      <div className="font-medium">{labelText}</div>
       {info.notes.length > 0 ? (
         <div className="space-y-1 text-xs text-muted-foreground">
           {info.notes.map((note, index) => (
@@ -1133,7 +1136,7 @@ const OutputRequirementAction = ({
           ) : null}
         </div>
       ) : (
-        renderActionForm()
+        info.type === "markDone" ? <div className="pt-1">{actionForm}</div> : actionForm
       )}
     </div>
   )
@@ -1359,10 +1362,6 @@ const CalendarView = ({
     }, {})
   }, [entriesForMonth])
 
-  const selectedEntries = selectedDate
-    ? tasksByDate[selectedDate.toDateString()] ?? []
-    : []
-
   const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate()
   const startWeekday = startOfMonth.getDay()
@@ -1487,120 +1486,6 @@ const CalendarView = ({
           })}
         </div>
 
-        <div className="mt-6">
-          <div className="text-sm font-semibold text-gray-700">
-            {selectedDate
-              ? `Tasks for ${selectedDate.toLocaleDateString(undefined, { dateStyle: "long" })}`
-              : "Tasks"}
-          </div>
-
-          {selectedEntries.length > 0 ? (
-            <div className="mt-3 space-y-3">
-              {selectedEntries.map((entry) => {
-                const nodeData = entry.node?.data as NodeData | undefined
-                const assignmentInfo = getAssignmentInfo(nodeData)
-                const outputInfo = getOutputRequirementInfo(nodeData)
-                const deadlineInfo = getDeadlineInfo(nodeData)
-                const taskDueDate = parseDateValue(entry.task?.due)
-                const nodeId = entry.node?.id ?? null
-                const submission = nodeId ? outputSubmissions[nodeId] : undefined
-
-                return (
-                  <div
-                    key={entry.id}
-                    className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="text-sm font-semibold text-gray-900">
-                          {entry.node?.data?.label || entry.task?.text || "Process step"}
-                        </div>
-                        {entry.node?.data?.description ? (
-                          <div className="mt-1 text-xs text-gray-500">
-                            {entry.node.data.description}
-                          </div>
-                        ) : null}
-                      </div>
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-xs font-medium",
-                          entry.task?.completed
-                            ? "bg-green-100 text-green-700"
-                            : "bg-yellow-100 text-yellow-700",
-                        )}
-                      >
-                        {entry.task?.completed ? "Completed" : "Pending"}
-                      </span>
-                    </div>
-
-                    <dl className="mt-3 grid gap-3 text-xs text-gray-600 sm:grid-cols-2">
-                      <div>
-                        <dt className="font-medium uppercase tracking-wide text-gray-500">
-                          Due
-                        </dt>
-                        <dd className="mt-1 text-sm text-gray-900">
-                          {taskDueDate
-                            ? formatDateTime(taskDueDate)
-                            : deadlineInfo.label}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="font-medium uppercase tracking-wide text-gray-500">
-                          Assignment
-                        </dt>
-                        <dd className="mt-1 text-sm text-gray-900">{assignmentInfo.label}</dd>
-                        {assignmentInfo.notes.map((note, index) => (
-                          <div key={index} className="mt-1 text-xs text-gray-500">
-                            {note}
-                          </div>
-                        ))}
-                      </div>
-                      <div>
-                        <dt className="font-medium uppercase tracking-wide text-gray-500">
-                          Output requirement
-                        </dt>
-                        <dd className="mt-1">
-                          {nodeId ? (
-                            <OutputRequirementAction
-                              nodeId={nodeId}
-                              info={outputInfo}
-                              submission={submission}
-                              onSubmit={onSubmitOutput}
-                              variant="card"
-                            />
-                          ) : (
-                            <div className="space-y-1 text-sm text-gray-900">
-                              <span className="font-medium">{outputInfo.label}</span>
-                              {outputInfo.notes.map((note, index) => (
-                                <span key={index} className="block text-xs text-gray-500">
-                                  {note}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-
-                    {entry.task?.completed && entry.task.completedAt ? (
-                      <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                        Completed by {entry.task.completedBy || "Unknown processor"} on{" "}
-                        {(() => {
-                          const parsed = parseDateValue(entry.task?.completedAt)
-                          return parsed ? formatDateTime(parsed) : entry.task?.completedAt
-                        })()}
-                      </div>
-                    ) : null}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500">
-              No tasks scheduled for this day.
-            </div>
-          )}
-        </div>
       </div>
 
       <Card>
@@ -1677,7 +1562,7 @@ const CalendarView = ({
                     Deadline
                   </TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wide">
-                    Output requirement
+                    Status
                   </TableHead>
                   <TableHead className="text-[11px] uppercase tracking-wide">
                     Assignment
