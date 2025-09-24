@@ -9,17 +9,28 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
+  LogOut,
   MessageSquare,
   Plus,
   Search,
   Settings,
+  Sparkles,
   SquarePen,
+  User,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import {
   Sidebar,
   SidebarContent,
@@ -245,17 +256,44 @@ function DashboardSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="h-auto py-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>OM</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-1 flex-col text-left">
-                <span className="truncate text-sm font-medium">Olivia Martin</span>
-                <span className="truncate text-xs text-muted-foreground">
-                  operations@processbuilder.com
-                </span>
-              </div>
-            </SidebarMenuButton>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg" className="h-auto py-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback>OM</AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-1 flex-col text-left">
+                    <span className="truncate text-sm font-medium">Olivia Martin</span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      operations@processbuilder.com
+                    </span>
+                  </div>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Olivia Martin</p>
+                    <p className="text-xs text-muted-foreground">
+                      operations@processbuilder.com
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Sparkles className="h-4 w-4" />
+                  Upgrade to Pro
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <User className="h-4 w-4" />
+                  Account
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
