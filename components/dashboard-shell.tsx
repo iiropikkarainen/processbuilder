@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import { type ReactNode } from "react"
 import {
   BarChart3,
@@ -142,8 +142,6 @@ const teams: { name: string; plan: string; initials: string; url: string }[] = [
 
 function DashboardSidebar() {
   const pathname = usePathname()
-  const router = useRouter()
-
   const isMatchingPath = (target: string) => {
     if (target === "/") {
       return pathname === "/"
@@ -297,9 +295,11 @@ function DashboardSidebar() {
                     <Sparkles className="h-4 w-4" />
                     Upgrade to Pro
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => router.push("/account-settings")}>
-                    <User className="h-4 w-4" />
-                    Account
+                  <DropdownMenuItem asChild>
+                    <Link href="/account-settings" className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      Account
+                    </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <LogOut className="h-4 w-4" />

@@ -25,6 +25,12 @@ import { Switch } from "@/components/ui/switch"
 
 type NotificationChannel = "slack" | "teams" | "email"
 
+type NotificationChannelOption = {
+  id: NotificationChannel
+  label: string
+  description: string
+}
+
 type TeamOption = {
   id: string
   name: string
@@ -47,6 +53,12 @@ const TIMEZONE_OPTIONS: TimezoneOption[] = [
   { value: "America/Chicago", label: "Central Time (US/Central)" },
   { value: "America/Los_Angeles", label: "Pacific Time (US/Pacific)" },
   { value: "Europe/London", label: "Greenwich Mean Time (Europe/London)" },
+]
+
+const NOTIFICATION_CHANNELS: NotificationChannelOption[] = [
+  { id: "slack", label: "Slack", description: "Send direct alerts to #process-ops." },
+  { id: "teams", label: "Microsoft Teams", description: "Notify dedicated responders in Teams." },
+  { id: "email", label: "Email", description: "Receive daily digests and assignments." },
 ]
 
 export default function AccountSettingsPage() {
@@ -195,15 +207,7 @@ export default function AccountSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                {([
-                  { id: "slack", label: "Slack", description: "Send direct alerts to #process-ops." },
-                  { id: "teams", label: "Microsoft Teams", description: "Notify dedicated responders in Teams." },
-                  { id: "email", label: "Email", description: "Receive daily digests and assignments." },
-                ] as {
-                  id: NotificationChannel
-                  label: string
-                  description: string
-                }[]).map((channel) => (
+                {NOTIFICATION_CHANNELS.map((channel) => (
                   <div
                     key={channel.id}
                     className="flex items-center justify-between gap-4 rounded-lg border px-4 py-3"
