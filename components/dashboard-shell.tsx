@@ -1,11 +1,12 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode } from "react"
 import {
   BarChart3,
   Bot,
+  ChevronsUpDown,
   LayoutDashboard,
   LifeBuoy,
   ListChecks,
@@ -141,6 +142,7 @@ const teams: { name: string; plan: string; initials: string; url: string }[] = [
 
 function DashboardSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
 
   const isMatchingPath = (target: string) => {
     if (target === "/") {
@@ -260,9 +262,9 @@ function DashboardSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="h-auto py-2">
+            <div className="flex items-center gap-2">
+              <SidebarMenuButton asChild size="lg" className="h-auto flex-1 py-2">
+                <Link href="/account-settings">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>OM</AvatarFallback>
                   </Avatar>
@@ -272,32 +274,40 @@ function DashboardSidebar() {
                       operations@processbuilder.com
                     </span>
                   </div>
-                </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-56">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Olivia Martin</p>
-                    <p className="text-xs text-muted-foreground">
-                      operations@processbuilder.com
-                    </p>
-                  </div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <Sparkles className="h-4 w-4" />
-                  Upgrade to Pro
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <User className="h-4 w-4" />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <LogOut className="h-4 w-4" />
-                  Log out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                </Link>
+              </SidebarMenuButton>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <ChevronsUpDown className="h-4 w-4" />
+                    <span className="sr-only">Open account menu</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="top" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">Olivia Martin</p>
+                      <p className="text-xs text-muted-foreground">
+                        operations@processbuilder.com
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <Sparkles className="h-4 w-4" />
+                    Upgrade to Pro
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => router.push("/account-settings")}>
+                    <User className="h-4 w-4" />
+                    Account
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <LogOut className="h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
