@@ -103,7 +103,7 @@ const navMain: {
 const navSecondary: { title: string; url: string; icon: LucideIcon }[] = [
   {
     title: "Settings",
-    url: "/?section=settings",
+    url: "/settings",
     icon: Settings,
   },
   {
@@ -239,16 +239,20 @@ function DashboardSidebar() {
           <SidebarGroupLabel>Support</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navSecondary.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild tooltip={item.title}>
-                    <Link href={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navSecondary.map((item) => {
+                const isActive = pathname === item.url || pathname.startsWith(`${item.url}/`)
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
+                      <Link href={item.url}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
