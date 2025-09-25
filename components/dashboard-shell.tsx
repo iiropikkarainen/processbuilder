@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { type ReactNode } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { type ReactNode, useCallback, useState } from "react"
 import {
   BarChart3,
   Bot,
@@ -142,6 +142,30 @@ const teams: { name: string; plan: string; initials: string; url: string }[] = [
 
 function DashboardSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleLogout = useCallback(async () => {
+    if (isLoggingOut) {
+      return
+    }
+
+    setIsLoggingOut(true)
+
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST" })
+
+      if (!response.ok) {
+        throw new Error("Failed to log out")
+      }
+
+      router.push("/login")
+      router.refresh()
+    } catch (error) {
+      console.error("Logout failed", error)
+      setIsLoggingOut(false)
+    }
+  }, [isLoggingOut, router])
   const isMatchingPath = (target: string) => {
     if (target === "/") {
       return pathname === "/"
@@ -260,9 +284,9 @@ function DashboardSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center gap-2">
-              <SidebarMenuButton asChild size="lg" className="h-auto flex-1 py-2">
-                <Link href="/account-settings">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton size="lg" className="h-auto py-2">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>OM</AvatarFallback>
                   </Avatar>
@@ -272,42 +296,41 @@ function DashboardSidebar() {
                       operations@processbuilder.com
                     </span>
                   </div>
-                </Link>
-              </SidebarMenuButton>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <ChevronsUpDown className="h-4 w-4" />
-                    <span className="sr-only">Open account menu</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" side="top" className="w-56">
-                  <DropdownMenuLabel className="font-normal">
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">Olivia Martin</p>
-                      <p className="text-xs text-muted-foreground">
-                        operations@processbuilder.com
-                      </p>
-                    </div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <Sparkles className="h-4 w-4" />
-                    Upgrade to Pro
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/account-settings" className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Account
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <LogOut className="h-4 w-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                  <ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground" />
+                  <span className="sr-only">Open account menu</span>
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">Olivia Martin</p>
+                    <p className="text-xs text-muted-foreground">
+                      operations@processbuilder.com
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <Sparkles className="h-4 w-4" />
+                  Upgrade to Pro
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account-settings" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Account
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    void handleLogout()
+                  }}
+                  disabled={isLoggingOut}
+                >
+                  <LogOut className="h-4 w-4" />
+                  {isLoggingOut ? "Logging out…" : "Log out"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
