@@ -1,6 +1,12 @@
 "use client"
 
-import { useState, type ComponentProps, type FormEvent } from "react"
+import {
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type FormEvent,
+} from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
@@ -16,6 +22,52 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
   const redirectTo = searchParams.get("redirect") ?? "/"
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false)
+
+  const redirectSearchParam = useMemo(() => {
+    if (!redirectTo || redirectTo === "/") {
+      return ""
+    }
+
+    return `?redirect=${encodeURIComponent(redirectTo)}`
+  }, [redirectTo])
+
+  const handleGoogleLogin = useCallback(() => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+    if (!supabaseUrl) {
+      setError("Supabase URL is not configured.")
+      return
+    }
+
+    let state = ""
+
+    try {
+      state = typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2)
+    } catch {
+      state = Math.random().toString(36).slice(2)
+    }
+
+    try {
+      sessionStorage.setItem("supabase.oauth.state", state)
+    } catch {
+      // sessionStorage might be unavailable (e.g. in private browsing).
+    }
+
+    const callbackUrl = new URL("/auth/callback" + redirectSearchParam, window.location.origin)
+
+    const authorizeUrl = new URL(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/authorize`)
+    authorizeUrl.searchParams.set("provider", "google")
+    authorizeUrl.searchParams.set("redirect_to", callbackUrl.toString())
+    authorizeUrl.searchParams.set("scopes", "email profile")
+    authorizeUrl.searchParams.set("flow_type", "implicit")
+    authorizeUrl.searchParams.set("state", state)
+
+    setIsOAuthLoading(true)
+    window.location.href = authorizeUrl.toString()
+  }, [redirectSearchParam])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -111,7 +163,13 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
             Or continue with
           </span>
         </div>
-        <Button variant="outline" className="w-full">
+        <Button
+          variant="outline"
+          className="w-full"
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={isLoading || isOAuthLoading}
+        >
           <svg
             className="mr-2 size-4"
             viewBox="0 0 24 24"
@@ -135,7 +193,7 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
               d="M12.24 4.75c2.297 0 3.845.993 4.73 1.822l3.455-3.37C18.29 1.353 15.534 0 12.24 0 7.502 0 3.392 2.784 1.312 7.281l3.952 3.058c.995-2.874 3.742-5.589 6.976-5.589z"
             />
           </svg>
-          Continue with Google
+          {isOAuthLoading ? "Redirecting…" : "Continue with Google"}
         </Button>
       </div>
       {error ? (
