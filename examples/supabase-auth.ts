@@ -5,13 +5,27 @@ import { createClient, type User } from '@supabase/supabase-js';
  * bypass RLS when provisioning organisations and updating user app_metadata.
  */
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+if (!supabaseUrl) {
+  throw new Error('Missing Supabase URL. Ensure NEXT_PUBLIC_SUPABASE_URL is set.');
+}
+
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseServiceRoleKey) {
+  throw new Error('Missing Supabase service role key. Ensure SUPABASE_SERVICE_ROLE_KEY is set.');
+}
+
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseServiceRoleKey || !supabaseAnonKey) {
-  throw new Error(
-    'Missing Supabase environment variables. Ensure NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY are set.',
-  );
+function getSupabaseAnonKey() {
+  if (!supabaseAnonKey) {
+    throw new Error(
+      'Missing Supabase anonymous key. Ensure NEXT_PUBLIC_SUPABASE_ANON_KEY is set before calling getCurrentUserClaims.',
+    );
+  }
+
+  return supabaseAnonKey;
 }
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -21,7 +35,7 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   },
 });
 
-type Role = 'superuser' | 'admin' | 'user';
+export type Role = 'superuser' | 'admin' | 'user';
 
 type AssignUserRoleInput = {
   userId: string;
@@ -77,7 +91,7 @@ export async function handleNewSignup(user: User) {
  * Frontend helper: read the role + organisation for the current session.
  */
 export async function getCurrentUserClaims() {
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
+  const client = createClient(supabaseUrl, getSupabaseAnonKey(), {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
