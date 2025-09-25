@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { supabase } from "@/lib/supabaseClient"
 
 type LoginFormProps = ComponentProps<"form">
 
@@ -32,42 +33,20 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
     return `?redirect=${encodeURIComponent(redirectTo)}`
   }, [redirectTo])
 
-  const handleGoogleLogin = useCallback(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-
-    if (!supabaseUrl) {
-      setError("Supabase URL is not configured.")
-      return
-    }
-
-    let state = ""
-
-    try {
-      state = typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : Math.random().toString(36).slice(2)
-    } catch {
-      state = Math.random().toString(36).slice(2)
-    }
-
-    try {
-      sessionStorage.setItem("supabase.oauth.state", state)
-    } catch {
-      // sessionStorage might be unavailable (e.g. in private browsing).
-    }
-
-    const callbackUrl = new URL("/auth/callback" + redirectSearchParam, window.location.origin)
-
-    const authorizeUrl = new URL(`${supabaseUrl.replace(/\/$/, "")}/auth/v1/authorize`)
-    authorizeUrl.searchParams.set("provider", "google")
-    authorizeUrl.searchParams.set("redirect_to", callbackUrl.toString())
-    authorizeUrl.searchParams.set("scopes", "email profile")
-    authorizeUrl.searchParams.set("flow_type", "implicit")
-    authorizeUrl.searchParams.set("state", state)
-
+  const handleGoogleLogin = useCallback(async () => {
     setIsOAuthLoading(true)
-    window.location.href = authorizeUrl.toString()
-  }, [redirectSearchParam])
+    try {
+      await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+    } catch (error) {
+      setError("Failed to initiate Google login.")
+      setIsOAuthLoading(false)
+    }
+  }, [])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
