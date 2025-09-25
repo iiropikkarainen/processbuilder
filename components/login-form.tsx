@@ -1,4 +1,7 @@
-import type { ComponentProps } from "react"
+"use client"
+
+import { useState, type ComponentProps, type FormEvent } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -8,8 +11,62 @@ import { Label } from "@/components/ui/label"
 type LoginFormProps = ComponentProps<"form">
 
 export function LoginForm({ className, ...props }: LoginFormProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get("redirect") ?? "/"
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    const formData = new FormData(event.currentTarget)
+    const email = formData.get("email") as string | null
+    const password = formData.get("password") as string | null
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (!response.ok) {
+        let message = "Unable to login. Please try again."
+
+        try {
+          const payload = await response.json()
+          if (typeof payload?.error === "string") {
+            message = payload.error
+          }
+        } catch {
+          // ignore JSON parsing issues and fall back to the default message
+        }
+
+        setError(message)
+        return
+      }
+
+      router.push(redirectTo || "/")
+      router.refresh()
+    } catch (cause) {
+      console.error("Login failed", cause)
+      setError("Unable to login. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
-    <form className={cn("flex flex-col gap-6", className)} {...props}>
+    <form
+      className={cn("flex flex-col gap-6", className)}
+      onSubmit={handleSubmit}
+      {...props}
+    >
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-bold">Login to your account</h1>
         <p className="text-muted-foreground text-sm text-balance">
@@ -19,7 +76,14 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
       <div className="grid gap-6">
         <div className="grid gap-3">
           <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" placeholder="m@example.com" required />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="m@example.com"
+            required
+            disabled={isLoading}
+          />
         </div>
         <div className="grid gap-3">
           <div className="flex items-center">
@@ -31,10 +95,16 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
               Forgot your password?
             </a>
           </div>
-          <Input id="password" type="password" required />
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            required
+            disabled={isLoading}
+          />
         </div>
-        <Button type="submit" className="w-full">
-          Login
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading ? "Logging in…" : "Login"}
         </Button>
         <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
           <span className="bg-background text-muted-foreground relative z-10 px-2">
@@ -68,6 +138,11 @@ export function LoginForm({ className, ...props }: LoginFormProps) {
           Continue with Google
         </Button>
       </div>
+      {error ? (
+        <p className="text-destructive text-sm" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="text-center text-sm">
         Don&apos;t have an account?{" "}
         <a href="#" className="underline underline-offset-4">
