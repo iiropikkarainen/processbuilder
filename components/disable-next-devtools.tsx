@@ -60,15 +60,37 @@ export default function DisableNextDevTools() {
       removeDevToolsElements()
     })
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    })
+    const registerObserver = () => {
+      const body = document.body
+      if (!body) {
+        return false
+      }
+
+      observer.observe(body, {
+        childList: true,
+        subtree: true,
+      })
+
+      return true
+    }
+
+    let registrationIntervalId: number | undefined
+    if (!registerObserver()) {
+      registrationIntervalId = window.setInterval(() => {
+        if (registerObserver() && registrationIntervalId !== undefined) {
+          window.clearInterval(registrationIntervalId)
+          registrationIntervalId = undefined
+        }
+      }, 50)
+    }
 
     return () => {
       observer.disconnect()
       window.clearInterval(intervalId)
       window.clearTimeout(timeoutId)
+      if (registrationIntervalId !== undefined) {
+        window.clearInterval(registrationIntervalId)
+      }
     }
   }, [])
 
