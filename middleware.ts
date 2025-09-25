@@ -23,7 +23,11 @@ function resolveRedirectUrl(request: NextRequest, destination: string | null) {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  if (pathname.startsWith("/_next") || pathname.startsWith("/api/auth")) {
+  if (
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/auth/callback")
+  ) {
     return NextResponse.next()
   }
 
