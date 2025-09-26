@@ -19,15 +19,19 @@ export default function AuthCallbackPage() {
         return
       }
 
-      const { data, error } = await supabase.auth.getSession()
+      const { data: exchangeData, error: exchangeError } =
+        await supabase.auth.exchangeCodeForSession({ authCode: code })
 
-      if (error || !data.session) {
-        console.error("❌ Auth callback error:", error ?? new Error("Session not found"))
+      if (exchangeError || !exchangeData.session) {
+        console.error(
+          "❌ Auth callback error:",
+          exchangeError ?? new Error("Session not found after code exchange"),
+        )
         router.replace("/login")
         return
       }
 
-      console.log("✅ Session established:", data.session)
+      console.log("✅ Session established:", exchangeData.session)
 
       try {
         const response = await fetch("/api/auth/session", {
