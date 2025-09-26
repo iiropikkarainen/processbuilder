@@ -16,7 +16,7 @@ function getRedirectPath(request: NextRequest) {
 }
 
 function resolveRedirectUrl(request: NextRequest, destination: string | null) {
-  const target = destination && destination.startsWith("/") ? destination : "/"
+  const target = destination && destination.startsWith("/") ? destination : "/overview"
   return new URL(target, request.url)
 }
 

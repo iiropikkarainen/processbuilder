@@ -14,7 +14,7 @@ function getSafeRedirect(searchParams: ReadonlyURLSearchParams) {
     return target
   }
 
-  return "/"
+  return "/overview"
 }
 
 export default function LoginForm() {
@@ -31,7 +31,8 @@ export default function LoginForm() {
 
     try {
       const origin = window.location.origin
-      const redirectQuery = redirectPath === "/" ? "" : `?redirect=${encodeURIComponent(redirectPath)}`
+      const redirectQuery =
+        redirectPath === "/overview" ? "" : `?redirect=${encodeURIComponent(redirectPath)}`
       const redirectTo = `${origin}/auth/callback${redirectQuery}`
 
       const { error: signInError } = await supabase.auth.signInWithOAuth({
