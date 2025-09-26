@@ -10,41 +10,42 @@ export default function AuthCallbackPage() {
   const supabase = useSupabaseClient()
 
   useEffect(() => {
-    async function handleCallback() {
-      const code = searchParams.get("code")
+    const handleCallback = async () => {
+      try {
+        // ✅ Securely fetch the authenticated user
+        const { data, error } = await supabase.auth.getUser()
+        if (error) throw error
 
-      if (!code) {
-        console.error("❌ Auth callback error: missing auth code in callback URL")
+        if (!data.user) {
+          console.error("❌ No authenticated user after callback")
+          router.replace("/login")
+          return
+        }
+
+        console.log("✅ Authenticated user:", data.user)
+
+        // ✅ Sanitize redirect target
+        let redirect = searchParams.get("redirect") || "/overview"
+        const allowedRedirects = ["/overview", "/dashboard", "/"]
+        if (!allowedRedirects.includes(redirect)) {
+          console.warn("⚠️ Invalid redirect, falling back to /overview:", redirect)
+          redirect = "/overview"
+        }
+
+        router.replace(redirect)
+        router.refresh()
+      } catch (err) {
+        console.error("❌ Auth callback error:", err)
         router.replace("/login")
-        return
       }
-
-      const { data, error } = await supabase.auth.getSession()
-
-      if (error || !data.session) {
-        console.error("❌ Auth callback error:", error ?? new Error("Session not found"))
-        router.replace("/login")
-        return
-      }
-
-      console.log("✅ Session established:", data.session)
-
-      const redirect = searchParams.get("redirect") ?? "/"
-      router.replace(redirect)
-      router.refresh()
     }
 
     handleCallback()
-  }, [router, searchParams, supabase])
+  }, [supabase, router, searchParams])
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
-      <div className="max-w-md text-center">
-        <h1 className="text-2xl font-semibold">Signing you in…</h1>
-        <p className="text-muted-foreground mt-4 text-sm">
-          Please wait while we finish connecting your Google account.
-        </p>
-      </div>
+    <div className="flex h-screen items-center justify-center">
+      <p>Signing you in…</p>
     </div>
   )
 }

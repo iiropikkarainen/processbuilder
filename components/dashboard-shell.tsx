@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { type ReactNode, useCallback, useState } from "react"
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
 import {
   BarChart3,
   Bot,
@@ -144,35 +145,38 @@ function DashboardSidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const supabase = useSupabaseClient()
+
+  const isMatchingPath = useCallback(
+    (target: string) => {
+      if (!target) return false
+      if (target === "/") {
+        return pathname === "/"
+      }
+      return pathname === target || pathname.startsWith(`${target}/`)
+    },
+    [pathname],
+  )
 
   const handleLogout = useCallback(async () => {
-    if (isLoggingOut) {
-      return
-    }
-
+    if (isLoggingOut) return
     setIsLoggingOut(true)
 
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" })
+      // ✅ clear client + server session
+      await supabase.auth.signOut()
 
-      if (!response.ok) {
-        throw new Error("Failed to log out")
-      }
+      // optional: also hit your API to ensure AUTH cookie cleared
+      await fetch("/api/auth/logout", { method: "POST" })
 
-      router.push("/login")
+      // ✅ redirect cleanly with flag
+      router.replace("/login?loggedOut=true")
       router.refresh()
-    } catch (error) {
-      console.error("Logout failed", error)
+    } catch (err) {
+      console.error("Logout failed", err)
       setIsLoggingOut(false)
     }
-  }, [isLoggingOut, router])
-  const isMatchingPath = (target: string) => {
-    if (target === "/") {
-      return pathname === "/"
-    }
-
-    return pathname === target || pathname.startsWith(`${target}/`)
-  }
+  }, [isLoggingOut, supabase, router])
 
   return (
     <Sidebar>

@@ -1,18 +1,12 @@
-import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
-
-import { AUTH_COOKIE_NAME } from "@/lib/auth"
+import type { NextRequest } from "next/server"
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 
 const PUBLIC_ROUTES = new Set(["/login"])
 
 function getRedirectPath(request: NextRequest) {
   const { pathname, search } = request.nextUrl
-
-  if (!search) {
-    return pathname
-  }
-
-  return `${pathname}${search}`
+  return search ? `${pathname}${search}` : pathname
 }
 
 function resolveRedirectUrl(request: NextRequest, destination: string | null) {
@@ -20,41 +14,42 @@ function resolveRedirectUrl(request: NextRequest, destination: string | null) {
   return new URL(target, request.url)
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req: request, res })
+
+  // ✅ secure check: call Supabase to verify user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const { pathname } = request.nextUrl
 
+  // allow static assets and callback
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/auth/callback")
+    pathname.startsWith("/auth/callback") ||
+    pathname === "/favicon.ico" ||
+    /\.[^/]+$/.test(pathname)
   ) {
-    return NextResponse.next()
-  }
-
-  if (pathname === "/favicon.ico" || /\.[^/]+$/.test(pathname)) {
-    return NextResponse.next()
+    return res
   }
 
   const isPublicRoute = PUBLIC_ROUTES.has(pathname)
-  const isAuthenticated = Boolean(request.cookies.get(AUTH_COOKIE_NAME)?.value)
 
-  if (!isAuthenticated && !isPublicRoute) {
-    const loginUrl = new URL("/login", request.url)
-    const redirectPath = getRedirectPath(request)
-
-    if (redirectPath && redirectPath !== "/login") {
-      loginUrl.searchParams.set("redirect", redirectPath)
-    }
-
-    return NextResponse.redirect(loginUrl)
+  if (!user && !isPublicRoute) {
+    // not logged in → redirect to login
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (isAuthenticated && isPublicRoute) {
+  if (user && isPublicRoute) {
+    // already logged in → skip login page
     const redirectTo = request.nextUrl.searchParams.get("redirect")
     return NextResponse.redirect(resolveRedirectUrl(request, redirectTo))
   }
 
-  return NextResponse.next()
+  return res
 }
 
 export const config = {

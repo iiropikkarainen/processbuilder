@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { cookies } from "next/headers"
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import SupabaseProvider from "../components/supabase-provider"
+import type { Database } from "@/types/supabase" // if you have generated types
 
 export const metadata: Metadata = {
   title: "workflow-builder",
@@ -10,15 +11,12 @@ export const metadata: Metadata = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // ✅ cookies() must be awaited
   const cookieStore = await cookies()
-  const supabase = createServerComponentClient({ cookies: () => cookieStore })
+  const supabase = createServerComponentClient<Database>({ cookies: () => cookieStore })
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const session = user ? { user } : null
+    data: { session },
+  } = await supabase.auth.getSession()
 
   return (
     <html lang="en">
