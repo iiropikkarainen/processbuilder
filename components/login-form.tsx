@@ -1,12 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import {
-  useRouter,
-  useSearchParams,
-  type ReadonlyURLSearchParams,
-} from "next/navigation"
-import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
+import { useCallback, useMemo, useState } from "react"
+import { useSearchParams, type ReadonlyURLSearchParams } from "next/navigation"
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
 import { Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -22,23 +18,12 @@ function getSafeRedirect(searchParams: ReadonlyURLSearchParams) {
 }
 
 export default function LoginForm() {
-  const router = useRouter()
   const searchParams = useSearchParams()
-  const session = useSession()
   const supabase = useSupabaseClient()
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const redirectPath = useMemo(() => getSafeRedirect(searchParams), [searchParams])
-
-  useEffect(() => {
-    if (!session) {
-      return
-    }
-
-    router.replace(redirectPath)
-    router.refresh()
-  }, [redirectPath, router, session])
 
   const handleGoogleSignIn = useCallback(async () => {
     setError(null)
@@ -88,13 +73,7 @@ export default function LoginForm() {
 
 function GoogleLogo({ className }: { className?: string }) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      focusable="false"
-      viewBox="0 0 18 18"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg aria-hidden="true" className={className} focusable="false" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M17.64 9.2045c0-.6381-.0573-1.2518-.1636-1.8409H9v3.4818h4.84c-.2086 1.125-.8427 2.0786-1.7954 2.7177v2.2581h2.9081c1.7018-1.5668 2.6873-3.874 2.6873-6.6167Z"
         fill="#4285F4"
