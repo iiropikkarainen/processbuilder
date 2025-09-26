@@ -1,12 +1,11 @@
 // @ts-nocheck
 "use client"
 
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import { format, formatDistanceToNow } from "date-fns"
 import { ArrowLeft, ClipboardList, Ticket } from "lucide-react"
 
@@ -141,64 +140,7 @@ export default function ServiceDeskRequestDetailPage() {
 
   const supabase = useSupabaseClient()
   const session = useSession()
-
-  // Ensure a DB ticket row exists
-  async function ensureTicketId(): Promise<string | null> {
-    if (!request) return null
-    if (dbTicketId) return dbTicketId
-    const code = request.id
-    const { data: existing } = await supabase
-      .from("tickets")
-      .select("id")
-      .eq("code", code)
-      .maybeSingle()
-    if (existing?.id) {
-      setDbTicketId(existing.id)
-      return existing.id
-    }
-
-    const payload: any = {
-      code,
-      title: request.title,
-      description: request.summary,
-      status: mapStatusForDb(status),
-      priority: mapPriorityForDb(priority),
-    }
-    if (isUuid(request.deskId)) {
-      payload.service_desk_id = request.deskId
-    }
-
-    console.log("🔍 Ensuring ticket, current request:", request)
-
-    // Use session to get userId
-    const userId = session?.user?.id
-    console.log("👤 Session user id:", userId)
-    if (!userId) {
-      console.warn("⚠️ No user logged in, cannot insert ticket.")
-      return null
-    }
-    payload.created_by = userId
-
-    const { data: inserted, error: insertErr } = await supabase
-      .from("tickets")
-      .insert(payload)
-      .select("id")
-      .single()
-    if (insertErr) {
-      console.error("❌ Error inserting ticket:", insertErr)
-      return null
-    }
-    if (inserted?.id) {
-      setDbTicketId(inserted.id)
-      return inserted.id
-    }
-    return null
-  }
-
-  useEffect(() => {
-    setStoredRequests(loadStoredRequests())
-    setIsHydrated(true)
-  }, [])
+  const sessionUserId = session?.user?.id ?? null
 
   const request = useMemo(() => {
     if (!ticketId) return null
@@ -208,6 +150,171 @@ export default function ServiceDeskRequestDetailPage() {
       null
     )
   }, [ticketId, storedRequests])
+
+  const normalizedAssignedTo = useMemo(() => assignedTo.trim(), [assignedTo])
+
+  const syncTicketAssignment = useCallback(
+    async (ticketUuid: string) => {
+      if (!ticketUuid) {
+        return
+      }
+
+      if (!normalizedAssignedTo) {
+        const { error } = await supabase.from("ticket_assignments").delete().eq("ticket_id", ticketUuid)
+        if (error) {
+          console.error("Error clearing ticket assignment:", error)
+        }
+        return
+      }
+
+      const assignmentPayload: Record<string, any> = {
+        ticket_id: ticketUuid,
+      }
+
+      if (isUuid(normalizedAssignedTo)) {
+        assignmentPayload.assigned_to = normalizedAssignedTo
+      } else {
+        assignmentPayload.assignee_name = normalizedAssignedTo
+      }
+
+      const { error } = await supabase
+        .from("ticket_assignments")
+        .upsert(assignmentPayload, { onConflict: "ticket_id" })
+
+      if (error) {
+        console.error("Error syncing ticket assignment:", error)
+      }
+    },
+    [normalizedAssignedTo, supabase],
+  )
+
+  const ensureTicketId = useCallback(async (): Promise<string | null> => {
+    if (!request) return null
+    if (dbTicketId) return dbTicketId
+
+    const code = request.id
+    const { data: existing, error: lookupError } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("code", code)
+      .maybeSingle()
+
+    if (lookupError) {
+      console.error("Error looking up ticket:", lookupError)
+      return null
+    }
+
+    if (existing?.id) {
+      setDbTicketId(existing.id)
+      return existing.id
+    }
+
+    const payload: Record<string, any> = {
+      code,
+      title: request.title,
+      description: request.summary,
+      status: mapStatusForDb(status),
+      priority: mapPriorityForDb(priority),
+    }
+
+    if (isUuid(request.deskId)) {
+      payload.service_desk_id = request.deskId
+    }
+
+    if (!sessionUserId) {
+      console.warn("⚠️ No user logged in, cannot insert ticket.")
+      return null
+    }
+    payload.created_by = sessionUserId
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from("tickets")
+      .insert(payload)
+      .select("id")
+      .single()
+
+    if (insertErr) {
+      console.error("❌ Error inserting ticket:", insertErr)
+      return null
+    }
+
+    if (inserted?.id) {
+      setDbTicketId(inserted.id)
+      return inserted.id
+    }
+
+    return null
+  }, [dbTicketId, priority, request, sessionUserId, status, supabase])
+
+  const syncTicketRecord = useCallback(async (): Promise<{ id: string | null; hadError: boolean }> => {
+    if (!request) {
+      return { id: null, hadError: true }
+    }
+
+    const id = await ensureTicketId()
+    if (!id) {
+      return { id: null, hadError: true }
+    }
+
+    const nowIso = new Date().toISOString()
+    const updatePayload: Record<string, any> = {
+      status: mapStatusForDb(status),
+      priority: mapPriorityForDb(priority),
+      title: request.title,
+      description: request.summary,
+      updated_at: nowIso,
+    }
+
+    if (isUuid(request.deskId)) {
+      updatePayload.service_desk_id = request.deskId
+    }
+
+    updatePayload.requested_by = request.requestedBy
+
+    const submitted = new Date(request.submittedAt)
+    if (isValidDate(submitted)) {
+      updatePayload.submitted_at = submitted.toISOString()
+    }
+
+    if (slaDueAt) {
+      const parsedSla = new Date(slaDueAt)
+      if (isValidDate(parsedSla)) {
+        updatePayload.sla_due_at = parsedSla.toISOString()
+      }
+    } else {
+      updatePayload.sla_due_at = null
+    }
+
+    updatePayload.linked_process_id = linkedProcessId || null
+
+    let hadError = false
+
+    const { error } = await supabase.from("tickets").update(updatePayload).eq("id", id)
+    if (error) {
+      hadError = true
+      console.error("Error updating ticket:", error)
+      const fallbackPayload = {
+        status: updatePayload.status,
+        priority: updatePayload.priority,
+        updated_at: nowIso,
+      }
+      const { error: fallbackError } = await supabase.from("tickets").update(fallbackPayload).eq("id", id)
+      if (fallbackError) {
+        console.error("Error applying fallback ticket update:", fallbackError)
+      } else {
+        hadError = false
+      }
+    }
+
+    await syncTicketAssignment(id)
+
+    return { id, hadError }
+  }, [ensureTicketId, linkedProcessId, request, slaDueAt, status, supabase, priority, syncTicketAssignment])
+
+  useEffect(() => {
+    setStoredRequests(loadStoredRequests())
+    setIsHydrated(true)
+  }, [])
 
   // Load comments
   useEffect(() => {
@@ -226,18 +333,18 @@ export default function ServiceDeskRequestDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [request?.id])
+  }, [ensureTicketId, request, supabase])
 
   const handleAddComment = async (e: FormEvent) => {
     e.preventDefault()
     if (!comments.trim() || !request) return
-    const id = await ensureTicketId()
+    const { id } = await syncTicketRecord()
     if (!id) return
 
     console.log("💬 Adding comment for ticket:", id)
 
     // Use session for user id
-    const created_by = session?.user?.id ?? null
+    const created_by = sessionUserId
     if (!created_by) {
       console.warn("⚠️ No user logged in, cannot add comment.")
       return
@@ -276,8 +383,6 @@ export default function ServiceDeskRequestDetailPage() {
     setSlaDueAt(request.slaDueAt ? formatDateTimeForInput(request.slaDueAt) : "")
     setLinkedProcessId(request.linkedProcessId ?? "")
   }, [request])
-
-  const normalizedAssignedTo = useMemo(() => assignedTo.trim(), [assignedTo])
 
   const sortedProcesses = useMemo(() => {
     return [...OPERATIONS_PROCESSES].sort((a, b) => {
@@ -370,30 +475,12 @@ export default function ServiceDeskRequestDetailPage() {
     }
     ;(async () => {
       setSaveState("saving")
-      const id = await ensureTicketId()
-      if (!id) {
+      const { id, hadError } = await syncTicketRecord()
+      if (!id || hadError) {
         setSaveState("idle")
         return
       }
-      const updatePayload: any = {
-        status: mapStatusForDb(status),
-        priority: mapPriorityForDb(priority),
-        updated_at: new Date().toISOString(),
-      }
-      // Only set service_desk_id if it's a valid UUID to avoid FK/UUID errors
-      if (isUuid(request.deskId)) {
-        updatePayload.service_desk_id = request.deskId
-      }
-      const { error } = await supabase
-        .from("tickets")
-        .update(updatePayload)
-        .eq("id", id)
-      if (error) {
-        console.error("Error saving request:", error)
-        setSaveState("idle")
-      } else {
-        setSaveState("saved")
-      }
+      setSaveState("saved")
     })()
   }
 
