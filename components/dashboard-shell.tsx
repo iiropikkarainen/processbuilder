@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { type ReactNode, useCallback, useState } from "react"
-import { useSupabaseClient } from "@supabase/auth-helpers-react"
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react"
+import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
 import {
   BarChart3,
   Bot,
@@ -146,6 +146,117 @@ function DashboardSidebar() {
   const router = useRouter()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const supabase = useSupabaseClient()
+  const session = useSession()
+  const [sidebarUser, setSidebarUser] = useState<{ name: string; email: string }>({
+    name: "",
+    email: "",
+  })
+
+  const sessionMetadata = session?.user?.user_metadata as Record<string, unknown> | undefined
+  const authEmail = session?.user?.email ??
+    (typeof sessionMetadata?.email === "string" ? (sessionMetadata.email as string) : "")
+  const authFullName = useMemo(() => {
+    const metadataFullName =
+      typeof sessionMetadata?.full_name === "string"
+        ? (sessionMetadata.full_name as string)
+        : undefined
+    const metadataName =
+      typeof sessionMetadata?.name === "string" ? (sessionMetadata.name as string) : undefined
+    const metadataGivenName =
+      typeof sessionMetadata?.given_name === "string"
+        ? (sessionMetadata.given_name as string)
+        : undefined
+    const metadataFamilyName =
+      typeof sessionMetadata?.family_name === "string"
+        ? (sessionMetadata.family_name as string)
+        : undefined
+
+    return (
+      metadataFullName ??
+      metadataName ??
+      (metadataGivenName && metadataFamilyName
+        ? `${metadataGivenName} ${metadataFamilyName}`
+        : undefined) ??
+      session?.user?.email ??
+      ""
+    )
+  }, [session?.user?.email, sessionMetadata])
+
+  useEffect(() => {
+    setSidebarUser((previous) => ({
+      name: previous.name || authFullName,
+      email: previous.email || authEmail,
+    }))
+  }, [authEmail, authFullName])
+
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    let isActive = true
+
+    const loadSidebarUser = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("full_name, email")
+        .eq("id", userId)
+        .maybeSingle()
+
+      if (!isActive) return
+
+      if (error && error.code !== "PGRST116") {
+        console.error("❌ Failed to load sidebar user:", error)
+        return
+      }
+
+      if (data) {
+        setSidebarUser({
+          name: data.full_name || authFullName,
+          email: data.email || authEmail,
+        })
+      }
+    }
+
+    void loadSidebarUser()
+
+    const channel = supabase
+      .channel("user-profile-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "users",
+          filter: `id=eq.${userId}`,
+        },
+        (payload) => {
+          const newRecord = payload.new as { full_name?: string | null; email?: string | null }
+          setSidebarUser({
+            name: newRecord?.full_name || authFullName,
+            email: newRecord?.email || authEmail,
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      isActive = false
+      void supabase.removeChannel(channel)
+    }
+  }, [session?.user?.id, supabase, authFullName, authEmail])
+
+  const sidebarInitials = useMemo(() => {
+    if (sidebarUser.name) {
+      const [first = "", second = ""] = sidebarUser.name.split(" ")
+      const firstInitial = first.charAt(0)
+      const secondInitial = second.charAt(0)
+      return `${firstInitial}${secondInitial}`.toUpperCase() || sidebarUser.name.charAt(0).toUpperCase()
+    }
+    if (sidebarUser.email) {
+      return sidebarUser.email.charAt(0).toUpperCase()
+    }
+    return ""
+  }, [sidebarUser.email, sidebarUser.name])
 
   const isMatchingPath = useCallback(
     (target: string) => {
@@ -292,12 +403,12 @@ function DashboardSidebar() {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg" className="h-auto py-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback>OM</AvatarFallback>
+                    <AvatarFallback>{sidebarInitials || "?"}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-1 flex-col text-left">
-                    <span className="truncate text-sm font-medium">Olivia Martin</span>
+                    <span className="truncate text-sm font-medium">{sidebarUser.name || "Account"}</span>
                     <span className="truncate text-xs text-muted-foreground">
-                      operations@processbuilder.com
+                      {sidebarUser.email || authEmail}
                     </span>
                   </div>
                   <ChevronsUpDown className="ml-auto h-4 w-4 text-muted-foreground" />
@@ -307,10 +418,8 @@ function DashboardSidebar() {
               <DropdownMenuContent align="start" side="top" className="w-56">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Olivia Martin</p>
-                    <p className="text-xs text-muted-foreground">
-                      operations@processbuilder.com
-                    </p>
+                    <p className="text-sm font-medium leading-none">{sidebarUser.name || "Account"}</p>
+                    <p className="text-xs text-muted-foreground">{sidebarUser.email || authEmail}</p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
