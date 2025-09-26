@@ -40,9 +40,9 @@ function AuthCallbackContent() {
           throw new Error("Missing authorization code. Please try logging in again.")
         }
 
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession({
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
           authCode,
-        })
+        )
 
         if (exchangeError) {
           throw exchangeError
