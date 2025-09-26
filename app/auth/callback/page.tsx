@@ -29,7 +29,22 @@ export default function AuthCallbackPage() {
 
       console.log("✅ Session established:", data.session)
 
-      const redirect = searchParams.get("redirect") ?? "/"
+      try {
+        const response = await fetch("/api/auth/session", {
+          method: "POST",
+          cache: "no-store",
+        })
+
+        if (!response.ok) {
+          throw new Error(`Unexpected response: ${response.status}`)
+        }
+      } catch (persistError) {
+        console.error("❌ Auth callback error: unable to persist session cookie", persistError)
+        router.replace("/login")
+        return
+      }
+
+      const redirect = searchParams.get("redirect") ?? "/overview"
       router.replace(redirect)
       router.refresh()
     }
