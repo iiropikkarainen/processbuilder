@@ -26,6 +26,14 @@ function AuthCallbackContent() {
 
     async function establishSession() {
       try {
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
+          window.location.href,
+        )
+
+        if (exchangeError) {
+          throw exchangeError
+        }
+
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
         if (sessionError || !session) {
