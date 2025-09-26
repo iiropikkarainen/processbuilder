@@ -66,8 +66,25 @@ export default function AccountSettingsPage() {
   const supabase = useSupabaseClient()
   const session = useSession()
   const userId = session?.user?.id
+  const metadata = session?.user?.user_metadata as Record<string, unknown> | undefined
+  const metadataFullName =
+    typeof metadata?.full_name === "string" ? (metadata.full_name as string) : undefined
+  const metadataName = typeof metadata?.name === "string" ? (metadata.name as string) : undefined
+  const metadataGivenName =
+    typeof metadata?.given_name === "string" ? (metadata.given_name as string) : undefined
+  const metadataFamilyName =
+    typeof metadata?.family_name === "string" ? (metadata.family_name as string) : undefined
+  const metadataEmail = typeof metadata?.email === "string" ? (metadata.email as string) : undefined
 
-  const [profile, setProfile] = useState({ name: "", email: "" })
+  const sessionFullName =
+    metadataFullName ??
+    metadataName ??
+    (metadataGivenName && metadataFamilyName ? `${metadataGivenName} ${metadataFamilyName}` : undefined) ??
+    session?.user?.email ??
+    ""
+  const sessionEmail = session?.user?.email ?? metadataEmail ?? ""
+
+  const [profile, setProfile] = useState({ name: sessionFullName, email: sessionEmail })
   const [defaultTeamId, setDefaultTeamId] = useState("")
   const [notifications, setNotifications] = useState<Record<NotificationChannel, boolean>>({
     slack: true,
@@ -79,11 +96,31 @@ export default function AccountSettingsPage() {
   const [userType, setUserType] = useState<"Super user" | "Admin" | "User">("User")
 
   useEffect(() => {
+    setProfile((previous) => ({
+      name: previous.name || sessionFullName,
+      email: previous.email || sessionEmail,
+    }))
+  }, [sessionFullName, sessionEmail])
+
+  useEffect(() => {
     if (!userId) return
+
+    let isMounted = true
     const loadProfile = async () => {
-      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).maybeSingle()
+
+      if (!isMounted) return
+
+      if (error && error.code !== "PGRST116") {
+        console.error("❌ Failed to load user profile:", error)
+        return
+      }
+
       if (data) {
-        setProfile({ name: data.full_name, email: data.email })
+        setProfile({
+          name: data.full_name || sessionFullName,
+          email: data.email || sessionEmail,
+        })
         setDefaultTeamId(data.default_team_id ?? "")
         setNotifications(data.notifications ?? { slack: true, teams: false, email: true })
         setTimezone(data.timezone ?? "America/New_York")
@@ -92,20 +129,29 @@ export default function AccountSettingsPage() {
           end: data.working_hours_end ?? "17:00",
         })
         setUserType(data.user_type ?? "User")
+      } else {
+        setProfile({ name: sessionFullName, email: sessionEmail })
       }
     }
-    loadProfile()
-  }, [userId, supabase])
+
+    void loadProfile()
+
+    return () => {
+      isMounted = false
+    }
+  }, [userId, supabase, sessionFullName, sessionEmail])
 
   async function handleSave() {
     console.log("🖱️ Save button clicked, userId:", userId)
     if (!userId) return
+    const nameToSave = profile.name.trim() || sessionFullName
+    const emailToSave = profile.email.trim() || sessionEmail
     const { data, error } = await supabase
       .from("users")
       .upsert({
         id: userId,
-        full_name: profile.name,
-        email: profile.email,
+        full_name: nameToSave,
+        email: emailToSave,
         default_team_id: defaultTeamId,
         notifications,
         timezone,
@@ -116,10 +162,11 @@ export default function AccountSettingsPage() {
       })
       .select()
       .single()
-  
+
     if (error) {
       console.error("❌ Failed to save user profile:", error)
     } else {
+      setProfile({ name: nameToSave, email: emailToSave })
       console.log("✅ Profile saved:", data)
     }
   }
