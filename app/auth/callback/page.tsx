@@ -19,6 +19,12 @@ function AuthCallbackContent() {
     return target
   }, [searchParams])
 
+  const authCode = useMemo(() => searchParams.get("code"), [searchParams])
+  const authError = useMemo(
+    () => searchParams.get("error_description") ?? searchParams.get("error"),
+    [searchParams],
+  )
+
   useEffect(() => {
     const supabase = createPagesBrowserClient()
 
@@ -26,8 +32,16 @@ function AuthCallbackContent() {
 
     async function establishSession() {
       try {
+        if (authError) {
+          throw new Error(authError)
+        }
+
+        if (!authCode) {
+          throw new Error("Missing authorization code. Please try logging in again.")
+        }
+
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(
-          window.location.href,
+          authCode,
         )
 
         if (exchangeError) {
@@ -53,7 +67,12 @@ function AuthCallbackContent() {
           return
         }
 
-        setError("Missing access token. Please try logging in again.")
+        const message =
+          cause instanceof Error && cause.message
+            ? cause.message
+            : "Missing access token. Please try logging in again."
+
+        setError(message)
       }
     }
 
@@ -62,7 +81,7 @@ function AuthCallbackContent() {
     return () => {
       isMounted = false
     }
-  }, [redirectTo, router])
+  }, [authCode, authError, redirectTo, router])
 
   return (
     <div className="flex min-h-svh items-center justify-center p-6">
