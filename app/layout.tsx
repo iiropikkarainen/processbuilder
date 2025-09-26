@@ -1,42 +1,31 @@
-import type { Metadata } from 'next'
-import { GeistSans } from 'geist/font/sans'
-import { GeistMono } from 'geist/font/mono'
-import DisableNextDevTools from '@/components/disable-next-devtools'
-import './globals.css'
+import "./globals.css"
+import type { Metadata } from "next"
+import { cookies } from "next/headers"
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
+import SupabaseProvider from "../components/supabase-provider"
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.app',
+  title: "workflow-builder",
+  description: "App",
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // ✅ cookies() must be awaited
+  const cookieStore = await cookies()
+  const supabase = createServerComponentClient({ cookies: () => cookieStore })
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const session = user ? { user } : null
+
   return (
     <html lang="en">
-      <head>
-        <style>{`
-html {
-  font-family: ${GeistSans.style.fontFamily};
-  --font-sans: ${GeistSans.variable};
-  --font-mono: ${GeistMono.variable};
-}
-[data-nextjs-dev-tools-button],
-[data-next-badge],
-[data-next-badge-root],
-[data-next-mark],
-[data-nextjs-toast],
-[data-nextjs-toast-wrapper] {
-  display: none !important;
-}
-        `}</style>
-      </head>
       <body>
-        <DisableNextDevTools />
-        {children}
+        <SupabaseProvider initialSession={session}>
+          {children}
+        </SupabaseProvider>
       </body>
     </html>
   )

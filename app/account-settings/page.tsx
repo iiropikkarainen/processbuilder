@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
 import { Bell, Building2, Globe, User } from "lucide-react"
 
 import { DashboardShell } from "@/components/dashboard-shell"
@@ -62,18 +63,66 @@ const NOTIFICATION_CHANNELS: NotificationChannelOption[] = [
 ]
 
 export default function AccountSettingsPage() {
-  const [profile, setProfile] = useState({
-    name: "Olivia Martin",
-    email: "operations@processbuilder.com",
-  })
-  const [defaultTeamId, setDefaultTeamId] = useState<string>(TEAM_OPTIONS[0]?.id ?? "process-ops")
+  const supabase = useSupabaseClient()
+  const session = useSession()
+  const userId = session?.user?.id
+
+  const [profile, setProfile] = useState({ name: "", email: "" })
+  const [defaultTeamId, setDefaultTeamId] = useState("")
   const [notifications, setNotifications] = useState<Record<NotificationChannel, boolean>>({
     slack: true,
     teams: false,
     email: true,
   })
-  const [timezone, setTimezone] = useState<string>(TIMEZONE_OPTIONS[0]?.value ?? "America/New_York")
+  const [timezone, setTimezone] = useState("America/New_York")
   const [workingHours, setWorkingHours] = useState({ start: "09:00", end: "17:00" })
+  const [userType, setUserType] = useState<"Super user" | "Admin" | "User">("User")
+
+  useEffect(() => {
+    if (!userId) return
+    const loadProfile = async () => {
+      const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
+      if (data) {
+        setProfile({ name: data.full_name, email: data.email })
+        setDefaultTeamId(data.default_team_id ?? "")
+        setNotifications(data.notifications ?? { slack: true, teams: false, email: true })
+        setTimezone(data.timezone ?? "America/New_York")
+        setWorkingHours({
+          start: data.working_hours_start ?? "09:00",
+          end: data.working_hours_end ?? "17:00",
+        })
+        setUserType(data.user_type ?? "User")
+      }
+    }
+    loadProfile()
+  }, [userId, supabase])
+
+  async function handleSave() {
+    console.log("🖱️ Save button clicked, userId:", userId)
+    if (!userId) return
+    const { data, error } = await supabase
+      .from("users")
+      .upsert({
+        id: userId,
+        full_name: profile.name,
+        email: profile.email,
+        default_team_id: defaultTeamId,
+        notifications,
+        timezone,
+        working_hours_start: workingHours.start,
+        working_hours_end: workingHours.end,
+        user_type: userType,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+  
+    if (error) {
+      console.error("❌ Failed to save user profile:", error)
+    } else {
+      console.log("✅ Profile saved:", data)
+    }
+  }
 
   const selectedTeam = useMemo(() => {
     return TEAM_OPTIONS.find((team) => team.id === defaultTeamId)?.name ?? TEAM_OPTIONS[0]?.name ?? ""
@@ -144,7 +193,7 @@ export default function AccountSettingsPage() {
                 Display details refresh immediately in the sidebar and assignment menus you appear in.
               </p>
               <div className="flex justify-end">
-                <Button size="sm">Save profile</Button>
+                <Button size="sm" onClick={handleSave}>Save profile</Button>
               </div>
             </CardContent>
           </Card>
@@ -184,7 +233,7 @@ export default function AccountSettingsPage() {
                 dashboards after signing in.
               </div>
               <div className="flex justify-end">
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={handleSave}>
                   Update default
                 </Button>
               </div>
@@ -230,7 +279,7 @@ export default function AccountSettingsPage() {
                 ))}
               </div>
               <div className="flex justify-end">
-                <Button size="sm">Save preferences</Button>
+                <Button size="sm" onClick={handleSave}>Save preferences</Button>
               </div>
             </CardContent>
           </Card>
@@ -299,7 +348,7 @@ export default function AccountSettingsPage() {
                 Upcoming runs and scheduled completions will adjust automatically for {timezone}.
               </p>
               <div className="flex justify-end">
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={handleSave}>
                   Update schedule
                 </Button>
               </div>

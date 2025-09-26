@@ -2,22 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-
-type SupabaseUser = {
-  id: string
-  email?: string | null
-}
-
-function parseHashParams(hash: string) {
-  const params = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash)
-  const result: Record<string, string> = {}
-
-  for (const [key, value] of params.entries()) {
-    result[key] = value
-  }
-
-  return result
-}
+import { createPagesBrowserClient } from "@supabase/auth-helpers-nextjs"
 
 function AuthCallbackContent() {
   const router = useRouter()
@@ -35,95 +20,20 @@ function AuthCallbackContent() {
   }, [searchParams])
 
   useEffect(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      setError("Supabase environment variables are not configured.")
-      return
-    }
-
-    const hashParams = parseHashParams(window.location.hash)
-    const queryState = searchParams.get("state")
-    const providerState = hashParams.state ?? queryState ?? ""
-    let storedState = ""
-
-    try {
-      storedState = sessionStorage.getItem("supabase.oauth.state") ?? ""
-    } catch {
-      storedState = ""
-    }
-
-    if (storedState && providerState && storedState !== providerState) {
-      setError("State mismatch detected. Please try logging in again.")
-      try {
-        sessionStorage.removeItem("supabase.oauth.state")
-      } catch {
-        // ignore storage access issues
-      }
-      return
-    }
-
-    try {
-      sessionStorage.removeItem("supabase.oauth.state")
-    } catch {
-      // ignore storage access issues
-    }
-
-    if (hashParams.error) {
-      setError(hashParams.error_description ?? "Unable to sign in with Google.")
-      return
-    }
-
-    const accessToken = hashParams.access_token
-    const refreshToken = hashParams.refresh_token
-
-    if (!accessToken) {
-      setError("Missing access token. Please try logging in again.")
-      return
-    }
+    const supabase = createPagesBrowserClient()
 
     let isMounted = true
 
     async function establishSession() {
       try {
-        const userResponse = await fetch(
-          `${supabaseUrl.replace(/\/$/, "")}/auth/v1/user`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              apikey: supabaseAnonKey,
-            },
-          },
-        )
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-        if (!userResponse.ok) {
-          throw new Error("Failed to fetch Supabase user profile")
+        if (sessionError || !session) {
+          throw new Error("Missing access token. Please try logging in again.")
         }
 
-        const user: SupabaseUser = await userResponse.json()
-        const email = user.email ?? `${user.id}@google-oauth`
-
-        const loginResponse = await fetch("/api/auth/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password: "google-oauth" }),
-        })
-
-        if (!loginResponse.ok) {
-          throw new Error("Failed to establish application session")
-        }
-
-        try {
-          localStorage.setItem("supabase.access_token", accessToken)
-
-          if (refreshToken) {
-            localStorage.setItem("supabase.refresh_token", refreshToken)
-          }
-        } catch {
-          // Access to localStorage might be restricted. Ignore errors.
+        if (!isMounted) {
+          return
         }
 
         router.replace(redirectTo)
@@ -135,7 +45,7 @@ function AuthCallbackContent() {
           return
         }
 
-        setError("Unable to complete Google sign-in. Please try again.")
+        setError("Missing access token. Please try logging in again.")
       }
     }
 
@@ -144,7 +54,7 @@ function AuthCallbackContent() {
     return () => {
       isMounted = false
     }
-  }, [redirectTo, router, searchParams])
+  }, [redirectTo, router])
 
   return (
     <div className="flex min-h-svh items-center justify-center p-6">

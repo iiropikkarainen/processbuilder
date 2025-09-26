@@ -2,6 +2,7 @@
 "use client"
 
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
 
 import Link from "next/link"
 import { useParams } from "next/navigation"
@@ -41,7 +42,6 @@ import {
   getOperationsProcessById,
 } from "@/lib/data/operations-catalog"
 import {
-  addStoredRequest,
   loadStoredRequests,
   useStoredRequestsSubscription,
 } from "@/lib/service-desk-storage"
@@ -73,6 +73,39 @@ const STATUS_OPTIONS: ServiceDeskRequestStatus[] = [
 
 const PRIORITY_OPTIONS: ServiceDeskRequest["priority"][] = ["High", "Medium", "Low"]
 
+// --- DB helpers -----------------------------------------------------------
+function isUuid(value: string | undefined | null) {
+  if (!value) return false
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+function mapStatusForDb(s: ServiceDeskRequestStatus) {
+  switch (s) {
+    case "New":
+      return "open"
+    case "In Progress":
+    case "Waiting on Customer":
+      return "in_progress"
+    case "Resolved":
+      return "resolved"
+    case "Closed":
+      return "closed"
+    default:
+      return "open"
+  }
+}
+function mapPriorityForDb(p: ServiceDeskRequest["priority"]) {
+  switch (p) {
+    case "High":
+      return "high"
+    case "Medium":
+      return "medium"
+    case "Low":
+      return "low"
+    default:
+      return "medium"
+  }
+}
+
 const NO_LINKED_PROCESS_VALUE = "__no_linked_process__"
 
 function formatDateTimeForInput(value: string) {
@@ -80,7 +113,6 @@ function formatDateTimeForInput(value: string) {
   if (Number.isNaN(date.getTime())) {
     return ""
   }
-
   const offsetMinutes = date.getTimezoneOffset()
   const local = new Date(date.getTime() - offsetMinutes * 60 * 1000)
   return local.toISOString().slice(0, 16)
@@ -104,59 +136,132 @@ export default function ServiceDeskRequestDetailPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
 
   const [comments, setComments] = useState<string>("")
-  const [commentList, setCommentList] = useState<{ id: string; content: string; createdAt: string }[]>([])
+  const [commentList, setCommentList] = useState<{ id: string; comment: string; created_at: string }[]>([])
+  const [dbTicketId, setDbTicketId] = useState<string | null>(null)
 
-  const supabase = createClientComponentClient()
+  const supabase = useSupabaseClient()
+  const session = useSession()
+
+  // Ensure a DB ticket row exists
+  async function ensureTicketId(): Promise<string | null> {
+    if (!request) return null
+    if (dbTicketId) return dbTicketId
+    const code = request.id
+    const { data: existing } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("code", code)
+      .maybeSingle()
+    if (existing?.id) {
+      setDbTicketId(existing.id)
+      return existing.id
+    }
+
+    const payload: any = {
+      code,
+      title: request.title,
+      description: request.summary,
+      status: mapStatusForDb(status),
+      priority: mapPriorityForDb(priority),
+    }
+    if (isUuid(request.deskId)) {
+      payload.service_desk_id = request.deskId
+    }
+
+    console.log("🔍 Ensuring ticket, current request:", request)
+
+    // Use session to get userId
+    const userId = session?.user?.id
+    console.log("👤 Session user id:", userId)
+    if (!userId) {
+      console.warn("⚠️ No user logged in, cannot insert ticket.")
+      return null
+    }
+    payload.created_by = userId
+
+    const { data: inserted, error: insertErr } = await supabase
+      .from("tickets")
+      .insert(payload)
+      .select("id")
+      .single()
+    if (insertErr) {
+      console.error("❌ Error inserting ticket:", insertErr)
+      return null
+    }
+    if (inserted?.id) {
+      setDbTicketId(inserted.id)
+      return inserted.id
+    }
+    return null
+  }
 
   useEffect(() => {
     setStoredRequests(loadStoredRequests())
     setIsHydrated(true)
-    // Fetch comments for this ticket
-    if (ticketId) {
-      supabase
-        .from("service_desk_comments")
-        .select("*")
-        .eq("ticket_id", ticketId)
-        .order("createdAt", { ascending: true })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setCommentList(data)
-          }
-        })
-    }
   }, [])
+
+  const request = useMemo(() => {
+    if (!ticketId) return null
+    return (
+      storedRequests.find((item) => item.id === ticketId) ||
+      SAMPLE_REQUEST_LOOKUP.find((item) => item.id === ticketId) ||
+      null
+    )
+  }, [ticketId, storedRequests])
+
+  // Load comments
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!request) return
+      const id = await ensureTicketId()
+      if (!id || cancelled) return
+      const { data } = await supabase
+        .from("ticket_comments")
+        .select("*")
+        .eq("ticket_id", id)
+        .order("created_at", { ascending: true })
+      if (!cancelled) setCommentList(data ?? [])
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [request?.id])
+
   const handleAddComment = async (e: FormEvent) => {
     e.preventDefault()
     if (!comments.trim() || !request) return
+    const id = await ensureTicketId()
+    if (!id) return
+
+    console.log("💬 Adding comment for ticket:", id)
+
+    // Use session for user id
+    const created_by = session?.user?.id ?? null
+    if (!created_by) {
+      console.warn("⚠️ No user logged in, cannot add comment.")
+      return
+    }
+
     const { data, error } = await supabase
-      .from("service_desk_comments")
-      .insert({ ticket_id: request.id, content: comments })
+      .from("ticket_comments")
+      .insert({
+        ticket_id: id,
+        comment: comments,
+        created_by,
+      })
       .select()
+      .single()
     if (!error && data) {
-      setCommentList((prev) => [...prev, data[0]])
+      setCommentList((prev) => [...prev, data])
       setComments("")
+    } else if (error) {
+      console.error("Error adding comment:", error)
     }
   }
 
   useStoredRequestsSubscription(setStoredRequests)
 
-  const request = useMemo(() => {
-    if (!ticketId) {
-      return null
-    }
-
-    const storedMatch = storedRequests.find((item) => item.id === ticketId)
-    if (storedMatch) {
-      return storedMatch
-    }
-
-    const sampleMatch = SAMPLE_REQUEST_LOOKUP.find((item) => item.id === ticketId)
-    if (sampleMatch) {
-      return sampleMatch
-    }
-
-    return null
-  }, [ticketId, storedRequests])
 
   const serviceDesk = request ? getServiceDeskById(request.deskId) : null
 
@@ -258,42 +363,38 @@ export default function ServiceDeskRequestDetailPage() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
-    if (!request) {
-      return
-    }
-
+    if (!request) return
     if (!hasChanges) {
       setSaveState("idle")
       return
     }
-
-    setSaveState("saving")
-
-    const nextSlaDate = slaDueAt ? new Date(slaDueAt) : null
-    const nextSlaIso = nextSlaDate && isValidDate(nextSlaDate) ? nextSlaDate.toISOString() : undefined
-    const trimmedAssignedTo = normalizedAssignedTo
-
-    const updatedRequest: ServiceDeskRequest = {
-      ...request,
-      status,
-      priority,
-      assignedTo: trimmedAssignedTo ? trimmedAssignedTo : undefined,
-      slaDueAt: nextSlaIso,
-      linkedProcessId: linkedProcessId || undefined,
-    }
-
-    supabase
-      .from("service_desk_requests")
-      .upsert(updatedRequest)
-      .then(({ error }) => {
-        if (error) {
-          console.error("Error saving request:", error)
-          setSaveState("idle")
-        } else {
-          setSaveState("saved")
-        }
-      })
+    ;(async () => {
+      setSaveState("saving")
+      const id = await ensureTicketId()
+      if (!id) {
+        setSaveState("idle")
+        return
+      }
+      const updatePayload: any = {
+        status: mapStatusForDb(status),
+        priority: mapPriorityForDb(priority),
+        updated_at: new Date().toISOString(),
+      }
+      // Only set service_desk_id if it's a valid UUID to avoid FK/UUID errors
+      if (isUuid(request.deskId)) {
+        updatePayload.service_desk_id = request.deskId
+      }
+      const { error } = await supabase
+        .from("tickets")
+        .update(updatePayload)
+        .eq("id", id)
+      if (error) {
+        console.error("Error saving request:", error)
+        setSaveState("idle")
+      } else {
+        setSaveState("saved")
+      }
+    })()
   }
 
   if (!request) {
@@ -560,8 +661,8 @@ export default function ServiceDeskRequestDetailPage() {
             <div className="space-y-3">
               {commentList.map((c) => (
                 <div key={c.id} className="rounded border p-2 text-sm">
-                  <p className="text-foreground">{c.content}</p>
-                  <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}</p>
+                  <p className="text-foreground">{c.comment}</p>
+                  <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}</p>
                 </div>
               ))}
               {commentList.length === 0 && <p className="text-sm text-muted-foreground">No comments yet.</p>}

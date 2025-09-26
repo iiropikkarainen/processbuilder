@@ -1,4 +1,6 @@
-import { supabase } from "@/lib/supabaseClient";
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
+
+const supabase = useSupabaseClient()
 
 /**
  * ✅ Create a new ticket
