@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react"
 import { LifeBuoy, Plus, Settings } from "lucide-react"
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
 
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Badge } from "@/components/ui/badge"
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils"
 import { SERVICE_DESKS, type ServiceDesk } from "@/lib/data/service-desks"
 import type { ServiceDeskRequest } from "@/lib/data/service-desk-requests"
 import { addStoredRequest } from "@/lib/service-desk-storage"
+import type { Database } from "@/types/supabase"
 
 interface ManagedServiceDesk extends ServiceDesk {
   ownerEmail: string
@@ -87,15 +89,9 @@ function createDeskIdentifier(name: string, existingIds: string[]) {
 }
 
 export default function ServiceDeskPage() {
-  const [serviceDesks, setServiceDesks] = useState<ManagedServiceDesk[]>(() =>
-    SERVICE_DESKS.map((desk) => ({
-      ...desk,
-      ownerEmail: `${desk.id}@processops.io`,
-      owningTeam: desk.name,
-      aiEnabled: false,
-    })),
-  )
-  const [selectedDeskId, setSelectedDeskId] = useState<string>(SERVICE_DESKS[0]?.id ?? "")
+  const supabase = useSupabaseClient<Database>()
+  const [serviceDesks, setServiceDesks] = useState<ManagedServiceDesk[]>([])
+  const [selectedDeskId, setSelectedDeskId] = useState<string>("")
   const [requestDetails, setRequestDetails] = useState("")
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -112,12 +108,135 @@ export default function ServiceDeskPage() {
     purpose: "",
     samples: "",
   })
+  const [isLoadingDesks, setIsLoadingDesks] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const mapRowToDesk = useCallback(
+    (row: Database["public"]["Tables"]["service_desks"]["Row"]): ManagedServiceDesk => ({
+      id: row.id,
+      name: row.name,
+      purpose: row.purpose ?? "",
+      samples: Array.isArray(row.samples) && row.samples.length > 0 ? row.samples : ["Capture a common request."],
+      ownerEmail: row.owner_email ?? "",
+      owningTeam: row.owning_team ?? "",
+      aiEnabled: Boolean(row.ai_enabled),
+    }),
+    [],
+  )
+
+  const sortDesksByName = useCallback((desks: ManagedServiceDesk[]) => {
+    return [...desks].sort((a, b) => a.name.localeCompare(b.name))
+  }, [])
 
   useEffect(() => {
     if (!serviceDesks.find((desk) => desk.id === selectedDeskId)) {
       setSelectedDeskId(serviceDesks[0]?.id ?? "")
     }
   }, [selectedDeskId, serviceDesks])
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadServiceDesks = async () => {
+      setIsLoadingDesks(true)
+      setLoadError(null)
+
+      const { data, error } = await supabase
+        .from("service_desks")
+        .select("*")
+        .order("name", { ascending: true })
+
+      if (!isActive) return
+
+      if (error) {
+        console.error("Failed to load service desks:", error)
+        setLoadError("Unable to load service desks. Please try again.")
+        setServiceDesks([])
+        setIsLoadingDesks(false)
+        return
+      }
+
+      if (!data || data.length === 0) {
+        const seedPayload = SERVICE_DESKS.map((desk) => ({
+          id: desk.id,
+          name: desk.name,
+          purpose: desk.purpose,
+          samples: desk.samples,
+          owner_email: `${desk.id}@processops.io`,
+          owning_team: desk.name,
+          ai_enabled: false,
+        }))
+
+        const { data: seeded, error: seedError } = await supabase
+          .from("service_desks")
+          .upsert(seedPayload, { onConflict: "id" })
+          .select("*")
+
+        if (!isActive) return
+
+        if (seedError) {
+          console.error("Failed to seed service desks:", seedError)
+          setLoadError("Unable to prepare service desks. Please try again.")
+          setServiceDesks([])
+          setIsLoadingDesks(false)
+          return
+        }
+
+        const mappedSeeded = seeded.map(mapRowToDesk)
+        setServiceDesks(sortDesksByName(mappedSeeded))
+        setIsLoadingDesks(false)
+        return
+      }
+
+      const mapped = data.map(mapRowToDesk)
+      setServiceDesks(sortDesksByName(mapped))
+      setIsLoadingDesks(false)
+    }
+
+    void loadServiceDesks()
+
+    const channel = supabase
+      .channel("service-desks-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "service_desks",
+        },
+        (payload) => {
+          if (!isActive) return
+
+          if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as { id?: string | null })?.id
+            if (!deletedId) return
+            setServiceDesks((previous) => {
+              const next = previous.filter((desk) => desk.id !== deletedId)
+              return sortDesksByName(next)
+            })
+            return
+          }
+
+          const newRow = payload.new as Database["public"]["Tables"]["service_desks"]["Row"]
+          const mappedDesk = mapRowToDesk(newRow)
+          setServiceDesks((previous) => {
+            const existingIndex = previous.findIndex((desk) => desk.id === mappedDesk.id)
+            if (existingIndex >= 0) {
+              const next = [...previous]
+              next[existingIndex] = mappedDesk
+              return sortDesksByName(next)
+            }
+            return sortDesksByName([...previous, mappedDesk])
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      isActive = false
+      supabase.removeChannel(channel)
+    }
+  }, [mapRowToDesk, sortDesksByName, supabase])
 
   const selectedDesk = useMemo(() => {
     return serviceDesks.find((desk) => desk.id === selectedDeskId)
@@ -187,40 +306,61 @@ export default function ServiceDeskPage() {
     setIsSettingsDialogOpen(true)
   }
 
-  function handleSaveSettings() {
-    setServiceDesks((previous) =>
-      previous.map((desk) =>
-        desk.id === settingsForm.deskId
-          ? {
-              ...desk,
-              ownerEmail: settingsForm.ownerEmail,
-              owningTeam: settingsForm.owningTeam,
-              aiEnabled: settingsForm.aiEnabled,
-            }
-          : desk,
-      ),
-    )
-    setIsSettingsDialogOpen(false)
-    setSettingsForm({ deskId: "", ownerEmail: "", owningTeam: "", aiEnabled: false })
-  }
+  async function handleSaveSettings() {
+    if (!settingsForm.deskId) {
+      return
+    }
 
-  function handleDeleteDesk() {
-    const deskId = settingsForm.deskId
-    setServiceDesks((previous) => {
-      const updated = previous.filter((desk) => desk.id !== deskId)
-      setSelectedDeskId((current) => {
-        if (current === deskId) {
-          return updated[0]?.id ?? ""
-        }
-        return current
+    const ownerEmail = settingsForm.ownerEmail.trim()
+    const owningTeam = settingsForm.owningTeam.trim()
+
+    const { data, error } = await supabase
+      .from("service_desks")
+      .update({
+        owner_email: ownerEmail || null,
+        owning_team: owningTeam || null,
+        ai_enabled: settingsForm.aiEnabled,
       })
-      return updated
-    })
+      .eq("id", settingsForm.deskId)
+      .select("*")
+      .maybeSingle()
+
+    if (error) {
+      console.error("Failed to update service desk settings:", error)
+      return
+    }
+
+    if (data) {
+      const updatedDesk = mapRowToDesk(data)
+      setServiceDesks((previous) => {
+        const next = previous.map((desk) => (desk.id === updatedDesk.id ? updatedDesk : desk))
+        return sortDesksByName(next)
+      })
+    }
+
     setIsSettingsDialogOpen(false)
     setSettingsForm({ deskId: "", ownerEmail: "", owningTeam: "", aiEnabled: false })
   }
 
-  function handleCreateDesk(event: FormEvent<HTMLFormElement>) {
+  async function handleDeleteDesk() {
+    const deskId = settingsForm.deskId
+    if (!deskId) {
+      return
+    }
+
+    const { error } = await supabase.from("service_desks").delete().eq("id", deskId)
+
+    if (error) {
+      console.error("Failed to delete service desk:", error)
+      return
+    }
+
+    setServiceDesks((previous) => previous.filter((desk) => desk.id !== deskId))
+    setIsSettingsDialogOpen(false)
+    setSettingsForm({ deskId: "", ownerEmail: "", owningTeam: "", aiEnabled: false })
+  }
+
+  async function handleCreateDesk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (!createForm.name.trim()) {
@@ -234,17 +374,30 @@ export default function ServiceDeskPage() {
       .map((item) => item.trim())
       .filter(Boolean)
 
-    const newDesk: ManagedServiceDesk = {
+    const payload = {
       id: newDeskId,
       name: createForm.name.trim(),
       purpose: createForm.purpose.trim() || "Describe how this desk supports your teams.",
       samples: sampleEntries.length > 0 ? sampleEntries : ["Capture a common request."],
-      ownerEmail: "",
-      owningTeam: "",
-      aiEnabled: false,
+      owner_email: "",
+      owning_team: "",
+      ai_enabled: false,
     }
 
-    setServiceDesks((previous) => [...previous, newDesk])
+    const { data, error } = await supabase
+      .from("service_desks")
+      .insert(payload)
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("Failed to create service desk:", error)
+      return
+    }
+
+    const newDesk = mapRowToDesk(data)
+
+    setServiceDesks((previous) => sortDesksByName([...previous, newDesk]))
     setSelectedDeskId(newDesk.id)
     setCreateForm({ name: "", purpose: "", samples: "" })
     setIsCreateDialogOpen(false)
@@ -269,6 +422,14 @@ export default function ServiceDeskPage() {
       }}
       defaultSearchPlaceholder="Find a service desk..."
     >
+      {loadError ? (
+        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
+      {isLoadingDesks && serviceDesks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Loading service desks...</p>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-[1.7fr,1fr]">
         <div className="grid gap-4 sm:grid-cols-2">
           {filteredDesks.length > 0 ? (
