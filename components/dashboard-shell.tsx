@@ -468,13 +468,27 @@ interface DashboardShellProps {
   children: ReactNode
   search?: DashboardShellSearchProps
   header?: DashboardShellHeaderProps
+  action?: {
+    label: string
+    onClick?: () => void
+    icon?: LucideIcon
+  }
+  defaultSearchPlaceholder?: string
 }
 
-export function DashboardShell({ children, search, header }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  search,
+  header,
+  action,
+  defaultSearchPlaceholder,
+}: DashboardShellProps) {
   const HeaderIcon = header?.icon ?? ListChecks
   const headerTitle = header?.title ?? "Operations Catalog"
   const headerDescription =
     header?.description ?? "Browse Processes, assign tasks, and orchestrate your processes."
+  const ActionIcon = action?.icon ?? Plus
+  const inactiveSearchPlaceholder = defaultSearchPlaceholder ?? "Search processes..."
 
   return (
     <SidebarProvider>
@@ -507,12 +521,21 @@ export function DashboardShell({ children, search, header }: DashboardShellProps
                 ) : (
                   <div className="relative w-full max-w-xs">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input className="h-9 w-full pl-9" placeholder="Search processes..." type="search" />
+                    <Input
+                      className="h-9 w-full pl-9"
+                      placeholder={inactiveSearchPlaceholder}
+                      type="search"
+                    />
                   </div>
                 )}
-                <Button size="sm" className="hidden sm:inline-flex">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New process
+                <Button
+                  size="sm"
+                  className="hidden sm:inline-flex"
+                  onClick={action?.onClick}
+                  type={action?.onClick ? "button" : undefined}
+                >
+                  <ActionIcon className="mr-2 h-4 w-4" />
+                  {action?.label ?? "New process"}
                 </Button>
               </div>
             </header>

@@ -1,4 +1,13 @@
-export const SERVICE_DESKS = [
+export interface ServiceDesk {
+  id: ServiceDeskId
+  name: string
+  purpose: string
+  samples: string[]
+}
+
+export type ServiceDeskId = string
+
+export const SERVICE_DESKS: ServiceDesk[] = [
   {
     id: "hr",
     name: "HR Service Desk",
@@ -65,11 +74,7 @@ export const SERVICE_DESKS = [
       "Book meeting space for board meeting.",
     ],
   },
-] as const
-
-export type ServiceDesk = (typeof SERVICE_DESKS)[number]
-
-export type ServiceDeskId = ServiceDesk["id"]
+]
 
 export function getServiceDeskById(id: string) {
   return SERVICE_DESKS.find((desk) => desk.id === id)
