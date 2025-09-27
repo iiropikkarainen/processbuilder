@@ -45,6 +45,7 @@ import {
   useStoredRequestsSubscription,
 } from "@/lib/service-desk-storage"
 import { cn } from "@/lib/utils"
+import { mapTicketRowToRequest, type TicketRow } from "@/lib/service-desk-ticket-mapper"
 
 const STATUS_BADGE_MAP: Record<ServiceDeskRequestStatus, string> = {
   New: "bg-blue-100 text-blue-700 border-transparent",
@@ -126,6 +127,7 @@ export default function ServiceDeskRequestDetailPage() {
   const ticketId = params?.ticketId ?? ""
 
   const [storedRequests, setStoredRequests] = useState<ServiceDeskRequest[]>([])
+  const [dbRequest, setDbRequest] = useState<ServiceDeskRequest | null>(null)
   const [isHydrated, setIsHydrated] = useState(false)
   const [status, setStatus] = useState<ServiceDeskRequestStatus>("New")
   const [priority, setPriority] = useState<ServiceDeskRequest["priority"]>("Medium")
@@ -146,10 +148,11 @@ export default function ServiceDeskRequestDetailPage() {
     if (!ticketId) return null
     return (
       storedRequests.find((item) => item.id === ticketId) ||
+      (dbRequest && dbRequest.id === ticketId ? dbRequest : null) ||
       SAMPLE_REQUEST_LOOKUP.find((item) => item.id === ticketId) ||
       null
     )
-  }, [ticketId, storedRequests])
+  }, [ticketId, storedRequests, dbRequest])
 
   const normalizedAssignedTo = useMemo(() => assignedTo.trim(), [assignedTo])
 
@@ -315,6 +318,83 @@ export default function ServiceDeskRequestDetailPage() {
     setStoredRequests(loadStoredRequests())
     setIsHydrated(true)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadRequestFromDatabase = async () => {
+      if (!ticketId) {
+        setDbRequest(null)
+        return
+      }
+
+      const existing = storedRequests.find((item) => item.id === ticketId)
+      if (existing) {
+        setDbRequest(null)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(
+          "id, code, title, description, status, priority, requested_by, submitted_at, created_at, service_desk_id, sla_due_at, linked_process_id",
+        )
+        .eq("code", ticketId)
+        .maybeSingle()
+
+      if (cancelled) {
+        return
+      }
+
+      if (error) {
+        console.error("Error loading ticket from database:", error)
+        setDbRequest(null)
+        return
+      }
+
+      if (!data) {
+        setDbRequest(null)
+        return
+      }
+
+      const mapped = mapTicketRowToRequest(data as TicketRow)
+      if (!mapped) {
+        setDbRequest(null)
+        return
+      }
+
+      let enriched = mapped
+
+      const databaseId = (data as { id?: string | null }).id ?? null
+      if (databaseId) {
+        setDbTicketId(databaseId)
+        const { data: assignmentData, error: assignmentError } = await supabase
+          .from("ticket_assignments")
+          .select("assigned_to, assignee_name")
+          .eq("ticket_id", databaseId)
+          .maybeSingle()
+
+        if (assignmentError) {
+          console.error("Error loading ticket assignment:", assignmentError)
+        }
+
+        if (!cancelled && !assignmentError && assignmentData) {
+          const assignedTo = assignmentData.assignee_name ?? assignmentData.assigned_to ?? enriched.assignedTo
+          enriched = { ...enriched, assignedTo: assignedTo ?? undefined }
+        }
+      }
+
+      if (!cancelled) {
+        setDbRequest(enriched)
+      }
+    }
+
+    void loadRequestFromDatabase()
+
+    return () => {
+      cancelled = true
+    }
+  }, [ticketId, storedRequests, supabase])
 
   // Load comments
   useEffect(() => {

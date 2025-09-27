@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { format } from "date-fns"
 import { FolderKanban, Ticket } from "lucide-react"
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
 
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Badge } from "@/components/ui/badge"
@@ -41,6 +42,12 @@ import {
   useStoredRequestsSubscription,
 } from "@/lib/service-desk-storage"
 import { cn } from "@/lib/utils"
+import {
+  mapTicketRowToRequest,
+  sortRequests,
+  type TicketRow,
+} from "@/lib/service-desk-ticket-mapper"
+import type { Database } from "@/types/supabase"
 
 const STATUS_BADGE_MAP: Record<ServiceDeskRequestStatus, string> = {
   New: "bg-blue-100 text-blue-700 border-transparent",
@@ -56,11 +63,7 @@ const PRIORITY_BADGE_MAP: Record<ServiceDeskRequest["priority"], string> = {
   Low: "bg-slate-100 text-slate-700 border-transparent",
 }
 
-function sortRequests(requests: ServiceDeskRequest[]) {
-  return [...requests].sort((a, b) => {
-    return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-  })
-}
+type ServiceDeskRow = Database["public"]["Tables"]["service_desks"]["Row"]
 
 function buildBaseCategories(serviceDesks: ServiceDesk[]) {
   return serviceDesks.map<ServiceDeskRequestCategory>((desk) => {
@@ -78,14 +81,140 @@ function buildBaseCategories(serviceDesks: ServiceDesk[]) {
 export default function ServiceDeskRequestsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const supabase = useSupabaseClient<Database>()
   const [activeDeskId, setActiveDeskId] = useState<ServiceDeskId>(SERVICE_DESKS[0].id)
   const [storedRequests, setStoredRequests] = useState<ServiceDeskRequest[]>([])
+  const [serviceDesks, setServiceDesks] = useState<ServiceDeskRow[]>([])
+  const [dbRequests, setDbRequests] = useState<ServiceDeskRequest[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     setStoredRequests(loadStoredRequests())
   }, [])
 
   useStoredRequestsSubscription(setStoredRequests)
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadData = async () => {
+      setIsLoading(true)
+      setLoadError(null)
+
+      const [desksResult, ticketsResult] = await Promise.all([
+        supabase
+          .from("service_desks")
+          .select("*")
+          .order("name", { ascending: true }),
+        supabase
+          .from("tickets")
+          .select(
+            "id, code, title, description, status, priority, requested_by, submitted_at, created_at, service_desk_id, sla_due_at, linked_process_id"
+          )
+          .order("submitted_at", { ascending: false, nullsLast: false })
+          .order("created_at", { ascending: false, nullsLast: false }),
+      ])
+
+      if (!isActive) {
+        return
+      }
+
+      const { data: deskData, error: deskError } = desksResult
+      const { data: ticketData, error: ticketError } = ticketsResult
+
+      if (deskError || ticketError) {
+        console.error("Failed to load service desk data", deskError ?? ticketError)
+        setLoadError("Unable to load service desk data. Showing sample data.")
+      }
+
+      if (deskData && deskData.length) {
+        setServiceDesks(deskData)
+      } else {
+        setServiceDesks([])
+      }
+
+      if (ticketData && ticketData.length) {
+        const mapped = ticketData
+          .map((row) => mapTicketRowToRequest(row as TicketRow))
+          .filter((row): row is ServiceDeskRequest => Boolean(row))
+        setDbRequests(mapped)
+      } else {
+        setDbRequests([])
+      }
+
+      setIsLoading(false)
+    }
+
+    void loadData()
+
+    const ticketChannel = supabase
+      .channel("requests-tickets-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets" },
+        (payload) => {
+          setDbRequests((previous) => {
+            if (payload.eventType === "DELETE") {
+              const deletedId = (payload.old as TicketRow | null)?.code ?? (payload.old as TicketRow | null)?.id
+              if (!deletedId) {
+                return previous
+              }
+              return previous.filter((item) => item.id !== deletedId)
+            }
+
+            const mapped = mapTicketRowToRequest(payload.new as TicketRow)
+            if (!mapped) {
+              return previous
+            }
+
+            const next = previous.some((item) => item.id === mapped.id)
+              ? previous.map((item) => (item.id === mapped.id ? mapped : item))
+              : [...previous, mapped]
+
+            return sortRequests(next)
+          })
+        },
+      )
+      .subscribe()
+
+    const deskChannel = supabase
+      .channel("requests-service-desks-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "service_desks" },
+        (payload) => {
+          setServiceDesks((previous) => {
+            if (payload.eventType === "DELETE") {
+              const deletedId = (payload.old as ServiceDeskRow | null)?.id
+              if (!deletedId) {
+                return previous
+              }
+              return previous.filter((desk) => desk.id !== deletedId)
+            }
+
+            const nextRow = (payload.new as ServiceDeskRow | null) ?? null
+            if (!nextRow) {
+              return previous
+            }
+
+            const exists = previous.some((desk) => desk.id === nextRow.id)
+            if (exists) {
+              return previous.map((desk) => (desk.id === nextRow.id ? nextRow : desk))
+            }
+
+            return [...previous, nextRow].sort((a, b) => a.name.localeCompare(b.name))
+          })
+        },
+      )
+      .subscribe()
+
+    return () => {
+      isActive = false
+      void supabase.removeChannel(ticketChannel)
+      void supabase.removeChannel(deskChannel)
+    }
+  }, [supabase])
 
   useEffect(() => {
     const deskParam = searchParams.get("desk")
@@ -103,18 +232,33 @@ export default function ServiceDeskRequestsPage() {
   }, [searchParams, activeDeskId])
 
   const categories = useMemo(() => {
-    const base = buildBaseCategories(SERVICE_DESKS)
+    const supabaseCategories: ServiceDeskRequestCategory[] = serviceDesks.map((desk) => {
+      const deskRequests = dbRequests.filter((request) => request.deskId === desk.id)
+      return {
+        id: desk.id as ServiceDeskId,
+        name: desk.name,
+        description:
+          desk.purpose ??
+          SAMPLE_SERVICE_DESK_REQUESTS.find((sample) => sample.id === desk.id)?.description ??
+          "Service desk queue",
+        requests: sortRequests(deskRequests),
+      }
+    })
+
+    const base = supabaseCategories.length ? supabaseCategories : buildBaseCategories(SERVICE_DESKS)
+
     if (!storedRequests.length) {
       return base
     }
 
     const requestsByDesk = storedRequests.reduce<Record<ServiceDeskId, ServiceDeskRequest[]>>(
       (accumulator, request) => {
-        if (!accumulator[request.deskId]) {
-          accumulator[request.deskId] = []
+        const deskId = request.deskId
+        if (!accumulator[deskId]) {
+          accumulator[deskId] = []
         }
 
-        accumulator[request.deskId].push(request)
+        accumulator[deskId].push(request)
         return accumulator
       },
       {} as Record<ServiceDeskId, ServiceDeskRequest[]>,
@@ -140,7 +284,7 @@ export default function ServiceDeskRequestsPage() {
         requests: sortRequests(Array.from(deduped.values())),
       }
     })
-  }, [storedRequests])
+  }, [serviceDesks, dbRequests, storedRequests])
 
   useEffect(() => {
     if (!categories.length) {
@@ -173,6 +317,20 @@ export default function ServiceDeskRequestsPage() {
       }}
     >
       <div className="flex flex-col gap-6">
+        {loadError ? (
+          <Card className="border-amber-200 bg-amber-50 text-amber-900">
+            <CardContent className="py-4 text-sm">
+              {loadError}
+            </CardContent>
+          </Card>
+        ) : null}
+        {isLoading && !categories.length ? (
+          <Card className="border-muted bg-muted/50">
+            <CardContent className="py-4 text-sm text-muted-foreground">
+              Loading service desk data...
+            </CardContent>
+          </Card>
+        ) : null}
         <Tabs value={activeDeskId} onValueChange={handleTabChange}>
           <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 sm:w-auto">
             {categories.map((category) => (
