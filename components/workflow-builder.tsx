@@ -149,10 +149,10 @@ type WorkflowBuilderProps = {
   className?: string
   tasks?: Task[]
   availableTasks?: Task[]
-  onAssignTask?: (taskId: number, nodeId: string | null) => void
+  onAssignTask?: (taskId: string, nodeId: string | null) => void
   onCreateTask?: (nodeId: string, text: string) => void
-  onUpdateTaskDueDate?: (taskId: number, due: string) => void
-  onMarkTaskDone?: (taskId: number) => void
+  onUpdateTaskDueDate?: (taskId: string, due: string) => void
+  onMarkTaskDone?: (taskId: string) => void
   onLastProcessDeadlineChange?: (deadline: ProcessDeadline | null) => void
   onWorkflowUpdate?: (workflow: Workflow) => void
 }

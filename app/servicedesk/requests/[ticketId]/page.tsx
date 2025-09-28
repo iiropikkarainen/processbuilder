@@ -37,9 +37,10 @@ import {
 } from "@/lib/data/service-desk-requests"
 import { getServiceDeskById } from "@/lib/data/service-desks"
 import {
-  OPERATIONS_PROCESSES,
-  getOperationsProcessById,
+  fetchOperationsProcessSummaries,
+  type OperationsProcessSummary,
 } from "@/lib/data/operations-catalog"
+import type { Database } from "@/types/supabase"
 import {
   loadStoredRequests,
   useStoredRequestsSubscription,
@@ -139,10 +140,49 @@ export default function ServiceDeskRequestDetailPage() {
   const [comments, setComments] = useState<string>("")
   const [commentList, setCommentList] = useState<{ id: string; comment: string; created_at: string }[]>([])
   const [dbTicketId, setDbTicketId] = useState<string | null>(null)
+  const [operationsProcesses, setOperationsProcesses] = useState<OperationsProcessSummary[]>([])
 
-  const supabase = useSupabaseClient()
+  const supabase = useSupabaseClient<Database>()
   const session = useSession()
   const sessionUserId = session?.user?.id ?? null
+
+  const orgId = useMemo(() => {
+    const metadata = (session?.user?.app_metadata ?? session?.user?.user_metadata) as
+      | Record<string, unknown>
+      | undefined
+
+    const value = metadata?.org_id
+    return typeof value === "string" ? value : undefined
+  }, [session])
+
+  useEffect(() => {
+    if (!orgId) {
+      setOperationsProcesses([])
+      return
+    }
+
+    let isActive = true
+
+    const loadProcesses = async () => {
+      try {
+        const processes = await fetchOperationsProcessSummaries(supabase, orgId)
+        if (isActive) {
+          setOperationsProcesses(processes)
+        }
+      } catch (error) {
+        console.error("❌ Failed to load operations processes:", error)
+        if (isActive) {
+          setOperationsProcesses([])
+        }
+      }
+    }
+
+    void loadProcesses()
+
+    return () => {
+      isActive = false
+    }
+  }, [orgId, supabase])
 
   const request = useMemo(() => {
     if (!ticketId) return null
@@ -465,7 +505,7 @@ export default function ServiceDeskRequestDetailPage() {
   }, [request])
 
   const sortedProcesses = useMemo(() => {
-    return [...OPERATIONS_PROCESSES].sort((a, b) => {
+    return [...operationsProcesses].sort((a, b) => {
       const categoryComparison = a.category.localeCompare(b.category)
       if (categoryComparison !== 0) {
         return categoryComparison
@@ -473,9 +513,11 @@ export default function ServiceDeskRequestDetailPage() {
 
       return a.title.localeCompare(b.title)
     })
-  }, [])
+  }, [operationsProcesses])
 
-  const selectedProcess = linkedProcessId ? getOperationsProcessById(linkedProcessId) : null
+  const selectedProcess = linkedProcessId
+    ? operationsProcesses.find((process) => process.id === linkedProcessId) ?? null
+    : null
 
   const slaDueSummary = useMemo(() => {
     if (!slaDueAt) {
