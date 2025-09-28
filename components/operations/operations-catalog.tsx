@@ -44,7 +44,6 @@ import {
   CURRENT_PROCESSOR_NAME,
   OWNER_OPTIONS,
   PROCESS_CREATOR_NAME,
-  SAMPLE_DATA,
   SOP_IMPORT_OPTIONS,
   SOP_STATUS_BADGE_STYLES,
   SOP_STATUS_LABELS,
@@ -56,6 +55,7 @@ import type {
   OutputSubmissionPayload,
   ProcessSettings,
   Sop,
+  SopStatus,
 } from "./types"
 import { buildSopContent, filterData, slugify } from "./utils"
 import { ProcessEditor, extractPlainText } from "../process-editor"
@@ -63,7 +63,9 @@ import { ProcessEditor, extractPlainText } from "../process-editor"
 export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [selectedSOP, setSelectedSOP] = useState<Sop | null>(null)
-  const [data, setData] = useState<Category[]>(SAMPLE_DATA)
+  const [data, setData] = useState<Category[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [fullscreen, setFullscreen] = useState(false)
   const [viewMode, setViewMode] = useState<"editor" | "process" | "calendar" | "settings">(
     "editor",
@@ -133,6 +135,227 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   )
 
   const processIdFromParams = searchParams.get("processId")
+
+  useEffect(() => {
+    let isActive = true
+
+    const loadOperationsData = async () => {
+      setIsLoading(true)
+      setFetchError(null)
+
+      let categoryRows: { id: string; title: string }[] | null = null
+      let processRows:
+        | {
+            id: string
+            name: string
+            description: string | null
+            status: string | null
+            content?: string | null
+            category_id?: string | null
+            created_at: string | null
+            updated_at: string | null
+          }[]
+        | null = null
+
+      try {
+        const [categoryResult, processResult] = await Promise.all([
+          supabase.from("operations_categories").select("id, title").order("title", { ascending: true }),
+          supabase
+            .from("processes")
+            .select("id, name, description, status, content, category_id, created_at, updated_at")
+            .order("name", { ascending: true }),
+        ])
+
+        if (!isActive) {
+          return
+        }
+
+        categoryRows = categoryResult.data
+        processRows = processResult.data
+
+        if (categoryResult.error || processResult.error) {
+          console.error("Failed to load operations data", categoryResult.error ?? processResult.error)
+          setFetchError(
+            categoryResult.error?.message ??
+              processResult.error?.message ??
+              "Unable to load operations data",
+          )
+        }
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        console.error("Unexpected error while loading operations data", error)
+        setFetchError(error instanceof Error ? error.message : "Unable to load operations data")
+      }
+
+      if (!isActive) {
+        return
+      }
+
+      const categoriesMap = new Map<string, Category>()
+
+      const ensureCategory = (
+        id: string | null | undefined,
+        title?: string | null,
+        supabaseId?: string | null,
+      ): Category => {
+        const trimmedId = id?.trim()
+        const resolvedTitle = title?.trim() || trimmedId || "Uncategorized"
+        const normalizedId = trimmedId || slugify(resolvedTitle) || `category-${Date.now()}`
+
+        const existing = categoriesMap.get(normalizedId)
+        if (existing) {
+          return existing
+        }
+
+        const category: Category = {
+          id: normalizedId,
+          title: resolvedTitle,
+          subcategories: [],
+          sops: [],
+          supabaseId: supabaseId ?? trimmedId ?? undefined,
+        }
+
+        categoriesMap.set(normalizedId, category)
+        return category
+      }
+
+      categoryRows?.forEach((row) => {
+        ensureCategory(row.id, row.title, row.id)
+      })
+
+      const fallbackCategoryId = categoriesMap.size > 0 ? [...categoriesMap.keys()][0] : null
+
+      const normalizeStatus = (status?: string | null): SopStatus => {
+        const normalized = status?.toLowerCase().trim()
+        if (normalized === "active") return "active"
+        if (normalized === "inactive") return "inactive"
+        return "in-design"
+      }
+
+      const formatUpdatedDate = (value?: string | null) => {
+        if (!value) {
+          return new Date().toISOString().slice(0, 10)
+        }
+
+        const parsed = new Date(value)
+        if (Number.isNaN(parsed.getTime())) {
+          return new Date().toISOString().slice(0, 10)
+        }
+
+        return parsed.toISOString().slice(0, 10)
+      }
+
+      const processes = processRows ?? []
+      processes.forEach((process) => {
+        const processWithCategory = process as typeof process & { category_id?: string | null }
+        const categoryId = processWithCategory.category_id ?? fallbackCategoryId
+        const category = ensureCategory(categoryId, undefined, categoryId ?? undefined)
+        const subcategoryId = category.subcategories[0]?.id ?? `${category.id}-general`
+
+        if (category.subcategories.length === 0) {
+          category.subcategories.push({ id: subcategoryId, title: "General" })
+        }
+
+        category.sops.push({
+          id: process.id,
+          title: process.name || "Untitled process",
+          subcategoryId,
+          owner: PROCESS_CREATOR_NAME,
+          lastUpdated: formatUpdatedDate(process.updated_at ?? process.created_at ?? undefined),
+          status: normalizeStatus(process.status),
+          content: (process as typeof process & { content?: string | null }).content ?? process.description ?? "",
+          processSettings: {
+            owner: PROCESS_CREATOR_NAME,
+            processType: "one-time",
+            oneTimeDeadline: null,
+            recurrence: {
+              frequency: "monthly",
+              customDays: [],
+              time: "09:00",
+              timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
+            },
+            vaultAccess: [],
+          },
+        })
+      })
+
+      let nextCategories = Array.from(categoriesMap.values()).map((category) => {
+        if (category.subcategories.length === 0) {
+          const defaultSubcategoryId = `${category.id}-general`
+          return {
+            ...category,
+            subcategories: [{ id: defaultSubcategoryId, title: "General" }],
+            sops: category.sops.map((sop) => ({
+              ...sop,
+              subcategoryId: sop.subcategoryId || defaultSubcategoryId,
+            })),
+          }
+        }
+
+        return {
+          ...category,
+          sops: category.sops.map((sop) => ({
+            ...sop,
+            subcategoryId: sop.subcategoryId || category.subcategories[0]?.id || `${category.id}-general`,
+          })),
+        }
+      })
+
+      if (!nextCategories.length && processes.length > 0) {
+        const fallbackCategory = ensureCategory("all-processes", "Processes", "all-processes")
+        fallbackCategory.subcategories = [{ id: `${fallbackCategory.id}-general`, title: "General" }]
+        processes.forEach((process) => {
+          fallbackCategory.sops.push({
+            id: process.id,
+            title: process.name || "Untitled process",
+            subcategoryId: fallbackCategory.subcategories[0]?.id ?? `${fallbackCategory.id}-general`,
+            owner: PROCESS_CREATOR_NAME,
+            lastUpdated: formatUpdatedDate(process.updated_at ?? process.created_at ?? undefined),
+            status: normalizeStatus(process.status),
+            content: (process as typeof process & { content?: string | null }).content ?? process.description ?? "",
+            processSettings: {
+              owner: PROCESS_CREATOR_NAME,
+              processType: "one-time",
+              oneTimeDeadline: null,
+              recurrence: {
+                frequency: "monthly",
+                customDays: [],
+                time: "09:00",
+                timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
+              },
+              vaultAccess: [],
+            },
+          })
+        })
+
+        nextCategories = Array.from(categoriesMap.values())
+      }
+
+      if (!isActive) {
+        return
+      }
+
+      setData(nextCategories)
+      setExpanded((prev) => {
+        const next: Record<string, boolean> = {}
+        nextCategories.forEach((category, index) => {
+          next[category.id] = prev[category.id] ?? index === 0
+        })
+        return next
+      })
+
+      setIsLoading(false)
+    }
+
+    void loadOperationsData()
+
+    return () => {
+      isActive = false
+    }
+  }, [supabase, setExpanded])
 
   useEffect(() => {
     if (!processIdFromParams) {
@@ -789,7 +1012,20 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
               )}
             </div>
 
-            {filteredData.map((category) => {
+            {isLoading ? (
+              <div className="rounded-2xl border bg-white p-4 text-sm text-gray-500">
+                Loading operations…
+              </div>
+            ) : fetchError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                {fetchError}
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="rounded-2xl border bg-white p-4 text-sm text-gray-500">
+                No processes found. Try adjusting your search or add a new category.
+              </div>
+            ) : (
+              filteredData.map((category) => {
               const sopForm =
                 newSopInputs[category.id] ?? {
                   title: "",
@@ -1153,7 +1389,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                   )}
                 </div>
               )
-            })}
+            ))}
           </div>
         )}
 
