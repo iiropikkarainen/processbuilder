@@ -22,7 +22,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import {
   Tooltip,
@@ -1462,7 +1461,7 @@ export function ProcessEditor({
         </div>
 
         <div className="relative flex-1">
-          <ScrollArea className="h-full">
+          <div className="h-full overflow-y-auto">
             <div className="relative px-6 pb-16 pt-6">
               <div className="hidden" aria-hidden data-safelist={SAFELIST_CLASSNAMES} />
               <div className="relative">
@@ -1489,7 +1488,7 @@ export function ProcessEditor({
                 />
               </div>
             </div>
-          </ScrollArea>
+          </div>
           <SlashMenu
             state={slashState}
             sections={filteredSections}
