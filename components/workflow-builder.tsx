@@ -174,6 +174,11 @@ export default function WorkflowBuilder({
   const [selectedNode, setSelectedNode] = useState<Node | null>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
   const lastDeadlineRef = useRef<ProcessDeadline | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const onConnect = useCallback(
     (params: Edge | Connection) => setEdges((eds) => addEdge({ ...params, type: "custom" }, eds)),
@@ -499,46 +504,52 @@ export default function WorkflowBuilder({
           <NodeLibrary />
         </div>
 
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1" ref={reactFlowWrapper}>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onInit={setReactFlowInstance}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              onNodeClick={onNodeClick}
-              onPaneClick={onPaneClick}
-              nodeTypes={nodeTypes}
-              edgeTypes={edgeTypes}
-              fitView
-              snapToGrid
-              snapGrid={[15, 15]}
-              defaultEdgeOptions={{ type: "custom" }}
-            >
-              <Background />
-              <Controls />
-              <MiniMap />
-              <Panel position="top-right">
-                <div className="flex gap-2">
-                  <Button onClick={saveWorkflow} size="sm" variant="outline">
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </Button>
-                  <Button onClick={loadWorkflow} size="sm" variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Load
-                  </Button>
-                  <Button onClick={executeWorkflow} size="sm" variant="default">
-                    <Play className="h-4 w-4 mr-2" />
-                    Execute
-                  </Button>
-                </div>
-              </Panel>
-            </ReactFlow>
+        <div className="flex-1 flex flex-col min-h-[600px]">
+          <div className="flex-1 h-full min-h-[600px]" ref={reactFlowWrapper}>
+            {isMounted ? (
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onInit={setReactFlowInstance}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
+                fitView
+                snapToGrid
+                snapGrid={[15, 15]}
+                defaultEdgeOptions={{ type: "custom" }}
+              >
+                <Background />
+                <Controls />
+                <MiniMap />
+                <Panel position="top-right">
+                  <div className="flex gap-2">
+                    <Button onClick={saveWorkflow} size="sm" variant="outline">
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </Button>
+                    <Button onClick={loadWorkflow} size="sm" variant="outline">
+                      <Upload className="h-4 w-4 mr-2" />
+                      Load
+                    </Button>
+                    <Button onClick={executeWorkflow} size="sm" variant="default">
+                      <Play className="h-4 w-4 mr-2" />
+                      Execute
+                    </Button>
+                  </div>
+                </Panel>
+              </ReactFlow>
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-muted/20">
+                <span className="text-sm text-muted-foreground">Loading workflow designer…</span>
+              </div>
+            )}
           </div>
         </div>
 
