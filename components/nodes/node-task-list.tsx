@@ -14,9 +14,9 @@ interface NodeTaskListProps {
   title?: string
   variant?: NodeTaskListVariant
   onAddTask?: (nodeId: string, text: string) => void
-  onAttachTask?: (taskId: number, nodeId: string) => void
-  onDueDateChange?: (taskId: number, due: string) => void
-  onMarkDone?: (taskId: number) => void
+  onAttachTask?: (taskId: string, nodeId: string) => void
+  onDueDateChange?: (taskId: string, due: string) => void
+  onMarkDone?: (taskId: string) => void
 }
 
 const placeholderOption = ""
@@ -50,10 +50,7 @@ export function NodeTaskList({
 
     if (!value || !onAttachTask) return
 
-    const parsedId = Number(value)
-    if (Number.isNaN(parsedId)) return
-
-    onAttachTask(parsedId, nodeId)
+    onAttachTask(value, nodeId)
     setSelectedTaskId(placeholderOption)
   }
 

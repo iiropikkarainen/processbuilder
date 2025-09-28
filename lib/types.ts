@@ -1,7 +1,7 @@
 import type { Node } from "reactflow"
 
 export interface Task {
-  id: number
+  id: string
   text: string
   due: string
   completed: boolean
@@ -89,10 +89,10 @@ export interface NodeData {
   // Task management
   tasks?: Task[]
   availableTasks?: Task[]
-  assignTask?: (taskId: number, nodeId: string | null) => void
+  assignTask?: (taskId: string, nodeId: string | null) => void
   createTask?: (nodeId: string, text: string) => void
-  updateTaskDueDate?: (taskId: number, due: string) => void
-  markTaskDone?: (taskId: number) => void
+  updateTaskDueDate?: (taskId: string, due: string) => void
+  markTaskDone?: (taskId: string) => void
 }
 
 export type WorkflowNode = Node<NodeData>

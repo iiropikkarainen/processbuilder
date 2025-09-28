@@ -4,12 +4,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type FormEvent,
   type ReactNode,
   type SetStateAction,
 } from "react"
+import { useSession, useSupabaseClient } from "@supabase/auth-helpers-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   Calendar as CalendarIcon,
@@ -86,44 +88,33 @@ import type {
   OutputRequirementType,
   OutputSubmission,
 } from "@/lib/types"
+import {
+  fetchOperationsCatalogData,
+  createOperationsCategory,
+  updateOperationsCategory,
+  deleteOperationsCategoryCascade,
+  createOperationsProcess,
+  updateOperationsProcess,
+  saveProcessContent,
+  saveProcessSettings,
+  saveProcessWorkflow,
+  saveProcessTasks,
+  deleteOperationsProcessCascade,
+  convertTaskToMetadataTask,
+  type CatalogCategory,
+  type CatalogSop,
+  type CatalogSubcategory,
+  type ProcessMetadata,
+  type ProcessSettingsData,
+  type SopStatus,
+} from "@/lib/data/operations-catalog"
+import { useToast } from "@/components/ui/use-toast"
+import type { Database } from "@/types/supabase"
 
-type Subcategory = {
-  id: string
-  title: string
-}
-
-type ProcessSettings = {
-  owner: string
-  processType: "one-time" | "recurring"
-  oneTimeDeadline: ProcessDeadline | null
-  recurrence: {
-    frequency: "custom" | "daily" | "weekly" | "monthly" | "quarterly" | "annually"
-    customDays: string[]
-    time: string
-    timezone: string
-  }
-  vaultAccess: string[]
-}
-
-type SopStatus = "active" | "in-design" | "inactive"
-
-type Sop = {
-  id: string
-  title: string
-  subcategoryId: string
-  owner: string
-  lastUpdated: string
-  status: SopStatus
-  content: string
-  processSettings: ProcessSettings
-}
-
-type Category = {
-  id: string
-  title: string
-  subcategories: Subcategory[]
-  sops: Sop[]
-}
+type ProcessSettings = ProcessSettingsData
+type Subcategory = CatalogSubcategory
+type Sop = CatalogSop
+type Category = CatalogCategory
 
 interface OpsCatalogProps {
   query: string
@@ -189,6 +180,16 @@ const SOP_IMPORT_OPTIONS: SopImportOption[] = [
     Logo: PdfLogo,
   },
 ]
+
+const generateTaskId = (): string => {
+  const cryptoObj = (globalThis as typeof globalThis & { crypto?: Crypto }).crypto
+
+  if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+    return cryptoObj.randomUUID()
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
 const SAMPLE_DATA: Category[] = [
   {
@@ -594,11 +595,18 @@ const DAY_OPTIONS = [
 
 const VAULT_OPTIONS = ["Deel", "Slack", "Jira", "Salesforce", "Notion"]
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "")
+const buildDefaultSettings = (): ProcessSettings => ({
+  owner: "Unassigned",
+  processType: "one-time",
+  oneTimeDeadline: null,
+  recurrence: {
+    frequency: "monthly",
+    customDays: [],
+    time: "09:00",
+    timezone: "UTC",
+  },
+  vaultAccess: [],
+})
 
 const buildSopContent = (title: string, prompt?: string) => {
   const baseTemplate = `# Process: ${title}
@@ -643,7 +651,7 @@ const ProcessView = ({
   const unassignedTasks = useMemo(() => tasks.filter((task) => !task.nodeId), [tasks])
 
   const assignTaskToNode = useCallback(
-    (taskId: number, nodeId: string | null) => {
+    (taskId: string, nodeId: string | null) => {
       setTasks((prev) =>
         prev.map((task) => (task.id === taskId ? { ...task, nodeId } : task)),
       )
@@ -652,14 +660,14 @@ const ProcessView = ({
   )
 
   const handleDueDateChange = useCallback(
-    (taskId: number, date: string) => {
+    (taskId: string, date: string) => {
       setTasks((prev) => prev.map((task) => (task.id === taskId ? { ...task, due: date } : task)))
     },
     [setTasks],
   )
 
   const handleMarkDone = useCallback(
-    (taskId: number) => {
+    (taskId: string) => {
       setTasks((prev) =>
         prev.map((task) =>
           task.id === taskId
@@ -681,7 +689,7 @@ const ProcessView = ({
       setTasks((prev) => [
         ...prev,
         {
-          id: Date.now(),
+          id: generateTaskId(),
           text,
           due: "",
           completed: false,
@@ -2100,10 +2108,88 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const [outputSubmissions, setOutputSubmissions] = useState<
     Record<string, OutputSubmission | undefined>
   >({})
+  const [tasksByProcessId, setTasksByProcessId] = useState<Record<string, Task[]>>({})
+  const [workflowByProcessId, setWorkflowByProcessId] = useState<Record<string, Workflow>>({})
+  const [processSettingsByProcessId, setProcessSettingsByProcessId] = useState<
+    Record<string, ProcessSettings>
+  >({})
+  const supabase = useSupabaseClient<Database>()
+  const session = useSession()
+  const { toast } = useToast()
+  const [isCatalogLoaded, setIsCatalogLoaded] = useState(false)
+  const contentSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const workflowSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const settingsSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const tasksSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingContentRef = useRef<{ processId: string; content: string } | null>(null)
+  const pendingWorkflowRef = useRef<{
+    processId: string
+    workflow: Workflow
+    previousNodeIds: string[]
+  } | null>(null)
+  const pendingSettingsRef = useRef<{ processId: string; settings: ProcessSettings } | null>(null)
+  const tasksInitialisedRef = useRef<Set<string>>(new Set())
+
+  const orgId = useMemo(() => {
+    const metadata = (session?.user?.app_metadata ?? session?.user?.user_metadata) as
+      | Record<string, unknown>
+      | undefined
+
+    const value = metadata?.org_id
+    return typeof value === "string" ? value : undefined
+  }, [session])
 
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+
+  useEffect(() => {
+    let isActive = true
+    tasksInitialisedRef.current = new Set()
+
+    const loadCatalog = async () => {
+      if (!orgId) {
+        if (isActive) {
+          setData(SAMPLE_DATA)
+          setTasksByProcessId({})
+          setWorkflowByProcessId({})
+          setProcessSettingsByProcessId({})
+          setIsCatalogLoaded(false)
+        }
+        return
+      }
+
+      try {
+        const result = await fetchOperationsCatalogData(supabase, orgId)
+        if (!isActive) {
+          return
+        }
+
+        setData(result.categories)
+        setTasksByProcessId(result.tasksByProcessId)
+        setWorkflowByProcessId(result.workflowByProcessId)
+        setProcessSettingsByProcessId(result.processSettingsByProcessId)
+        setIsCatalogLoaded(true)
+      } catch (error) {
+        console.error("❌ Failed to load operations catalog:", error)
+        if (isActive) {
+          toast({
+            title: "Failed to load operations catalog",
+            description: error instanceof Error ? error.message : "Please try again later.",
+            variant: "destructive",
+          })
+          setData(SAMPLE_DATA)
+          setIsCatalogLoaded(false)
+        }
+      }
+    }
+
+    void loadCatalog()
+
+    return () => {
+      isActive = false
+    }
+  }, [orgId, supabase, toast])
 
   const updateUrlForSelectedSop = useCallback(
     (sop: Sop | null) => {
@@ -2130,18 +2216,213 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
   const handleSelectSop = useCallback(
     (sop: Sop) => {
-      setSelectedSOP(sop)
+      const settings = processSettingsByProcessId[sop.id] ?? sop.processSettings
+      const workflow = workflowByProcessId[sop.id] ?? null
+      const processTasks = tasksByProcessId[sop.id] ?? []
+
+      setSelectedSOP({ ...sop, processSettings: settings })
+      setProcessSettings(settings)
+      setTasks(processTasks)
+      setCurrentWorkflow(workflow)
       setViewMode("editor")
       updateUrlForSelectedSop(sop)
     },
-    [updateUrlForSelectedSop],
+    [
+      processSettingsByProcessId,
+      tasksByProcessId,
+      workflowByProcessId,
+      updateUrlForSelectedSop,
+    ],
   )
 
   const clearSelectedSop = useCallback(() => {
     setSelectedSOP(null)
+    setProcessSettings(null)
+    setTasks([])
+    setCurrentWorkflow(null)
     setViewMode("editor")
     updateUrlForSelectedSop(null)
   }, [updateUrlForSelectedSop])
+
+  const getProcessSettingsForProcess = useCallback(
+    (processId: string): ProcessSettings => {
+      if (processSettingsByProcessId[processId]) {
+        return processSettingsByProcessId[processId]
+      }
+
+      if (selectedSOP?.id === processId) {
+        return processSettings ?? selectedSOP.processSettings
+      }
+
+      return buildDefaultSettings()
+    },
+    [processSettingsByProcessId, selectedSOP, processSettings],
+  )
+
+  const getTasksForProcess = useCallback(
+    (processId: string): Task[] => {
+      if (selectedSOP?.id === processId) {
+        return tasks
+      }
+
+      return tasksByProcessId[processId] ?? []
+    },
+    [selectedSOP, tasks, tasksByProcessId],
+  )
+
+  const buildMetadataForProcess = useCallback(
+    (processId: string): ProcessMetadata => {
+      const settingsForProcess = getProcessSettingsForProcess(processId)
+      const tasksForProcess = getTasksForProcess(processId)
+      return {
+        ownerDisplayName: settingsForProcess.owner,
+        oneTimeDeadline: settingsForProcess.oneTimeDeadline ?? null,
+        backlogTasks: tasksForProcess
+          .filter((task) => !task.nodeId)
+          .map((task) => convertTaskToMetadataTask(task)),
+      }
+    },
+    [getProcessSettingsForProcess, getTasksForProcess],
+  )
+
+  const persistProcessContent = useCallback(
+    async (processId: string, content: string) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      try {
+        const metadata = buildMetadataForProcess(processId)
+        await saveProcessContent(
+          supabase,
+          processId,
+          content,
+          metadata,
+          session?.user?.id,
+        )
+      } catch (error) {
+        console.error("Failed to save process content", error)
+        toast({
+          title: "Failed to save process content",
+          description: error instanceof Error ? error.message : "Please try again later.",
+          variant: "destructive",
+        })
+      }
+    },
+    [orgId, isCatalogLoaded, buildMetadataForProcess, supabase, session?.user?.id, toast],
+  )
+
+  const scheduleProcessContentSave = useCallback(
+    (processId: string, content: string) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      pendingContentRef.current = { processId, content }
+      if (contentSaveTimeoutRef.current) {
+        clearTimeout(contentSaveTimeoutRef.current)
+      }
+
+      contentSaveTimeoutRef.current = setTimeout(() => {
+        const pending = pendingContentRef.current
+        if (pending) {
+          void persistProcessContent(pending.processId, pending.content)
+          pendingContentRef.current = null
+        }
+        contentSaveTimeoutRef.current = null
+      }, 800)
+    },
+    [orgId, isCatalogLoaded, persistProcessContent],
+  )
+
+  const persistProcessWorkflow = useCallback(
+    async (processId: string, workflow: Workflow, previousNodeIds: string[]) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      try {
+        await saveProcessWorkflow(supabase, processId, workflow, previousNodeIds)
+      } catch (error) {
+        console.error("Failed to save process workflow", error)
+        toast({
+          title: "Failed to save process workflow",
+          description: error instanceof Error ? error.message : "Please try again later.",
+          variant: "destructive",
+        })
+      }
+    },
+    [orgId, isCatalogLoaded, supabase, toast],
+  )
+
+  const scheduleProcessWorkflowSave = useCallback(
+    (processId: string, workflow: Workflow, previousNodeIds: string[]) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      pendingWorkflowRef.current = { processId, workflow, previousNodeIds }
+      if (workflowSaveTimeoutRef.current) {
+        clearTimeout(workflowSaveTimeoutRef.current)
+      }
+
+      workflowSaveTimeoutRef.current = setTimeout(() => {
+        const pending = pendingWorkflowRef.current
+        if (pending) {
+          void persistProcessWorkflow(pending.processId, pending.workflow, pending.previousNodeIds)
+          pendingWorkflowRef.current = null
+        }
+        workflowSaveTimeoutRef.current = null
+      }, 800)
+    },
+    [orgId, isCatalogLoaded, persistProcessWorkflow],
+  )
+
+  const persistProcessSettings = useCallback(
+    async (processId: string, settings: ProcessSettings) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      try {
+        const metadata = buildMetadataForProcess(processId)
+        metadata.ownerDisplayName = settings.owner
+        metadata.oneTimeDeadline = settings.oneTimeDeadline ?? null
+        await saveProcessSettings(supabase, processId, settings, metadata)
+      } catch (error) {
+        console.error("Failed to save process settings", error)
+        toast({
+          title: "Failed to save process settings",
+          description: error instanceof Error ? error.message : "Please try again later.",
+          variant: "destructive",
+        })
+      }
+    },
+    [orgId, isCatalogLoaded, buildMetadataForProcess, supabase, toast],
+  )
+
+  const scheduleProcessSettingsSave = useCallback(
+    (processId: string, settings: ProcessSettings) => {
+      if (!orgId || !isCatalogLoaded) {
+        return
+      }
+
+      pendingSettingsRef.current = { processId, settings }
+      if (settingsSaveTimeoutRef.current) {
+        clearTimeout(settingsSaveTimeoutRef.current)
+      }
+
+      settingsSaveTimeoutRef.current = setTimeout(() => {
+        const pending = pendingSettingsRef.current
+        if (pending) {
+          void persistProcessSettings(pending.processId, pending.settings)
+          pendingSettingsRef.current = null
+        }
+        settingsSaveTimeoutRef.current = null
+      }, 800)
+    },
+    [orgId, isCatalogLoaded, persistProcessSettings],
+  )
 
   const findSopById = useCallback(
     (id: string) => {
@@ -2193,9 +2474,30 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     handleSelectSop,
   ])
 
-  const handleWorkflowUpdate = useCallback((workflow: Workflow) => {
-    setCurrentWorkflow(workflow)
-  }, [])
+  const handleWorkflowUpdate = useCallback(
+    (workflow: Workflow) => {
+      setCurrentWorkflow(workflow)
+
+      if (selectedSOP) {
+        const previousNodes = workflowByProcessId[selectedSOP.id]?.nodes ?? []
+        const nodeIds = new Set(workflow.nodes.map((node) => node.id))
+
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.nodeId && !nodeIds.has(task.nodeId) ? { ...task, nodeId: null } : task,
+          ),
+        )
+
+        setWorkflowByProcessId((prev) => ({ ...prev, [selectedSOP.id]: workflow }))
+        scheduleProcessWorkflowSave(
+          selectedSOP.id,
+          workflow,
+          previousNodes.map((node) => node.id),
+        )
+      }
+    },
+    [selectedSOP, workflowByProcessId, scheduleProcessWorkflowSave],
+  )
 
   const handleOutputSubmission = useCallback(
     (nodeId: string, payload: OutputSubmissionPayload) => {
@@ -2285,28 +2587,48 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
         prev ? { ...prev, content: newContent, lastUpdated: today } : prev,
       )
     }
+
+    scheduleProcessContentSave(id, newContent)
   }
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     const trimmed = newCategoryTitle.trim()
     if (!trimmed) return
 
-    const baseId = slugify(trimmed) || `category-${Date.now()}`
-    const uniqueId = data.some((category) => category.id === baseId)
-      ? `${baseId}-${Date.now()}`
-      : baseId
-    const defaultSubcategoryId = `${uniqueId}-general`
-
-    const nextCategory: Category = {
-      id: uniqueId,
-      title: trimmed,
-      subcategories: [{ id: defaultSubcategoryId, title: "General" }],
-      sops: [],
+    if (!orgId) {
+      toast({
+        title: "Cannot add category",
+        description: "You need to be part of an organisation to create categories.",
+        variant: "destructive",
+      })
+      return
     }
 
-    setData((prev) => [...prev, nextCategory])
-    setExpanded((prev) => ({ ...prev, [uniqueId]: true }))
-    setNewCategoryTitle("")
+    try {
+      const { category, subcategory } = await createOperationsCategory(supabase, orgId, trimmed)
+      const nextCategory: Category = {
+        id: category.id,
+        title: category.title,
+        subcategories: [{ id: subcategory.id, title: subcategory.title }],
+        sops: [],
+      }
+
+      setData((prev) => {
+        const next = [...prev, nextCategory]
+        next.sort((a, b) => a.title.localeCompare(b.title))
+        return next
+      })
+      setExpanded((prev) => ({ ...prev, [category.id]: true }))
+      setNewCategoryTitle("")
+      setShowAddCategory(false)
+    } catch (error) {
+      console.error("Failed to add category", error)
+      toast({
+        title: "Failed to add category",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleToggleAddCategory = () => {
@@ -2329,22 +2651,43 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setEditingCategoryTitle("")
   }
 
-  const saveCategoryTitle = () => {
+  const saveCategoryTitle = async () => {
     if (!editingCategoryId) return
     const trimmed = editingCategoryTitle.trim()
     if (!trimmed) return
 
-    setData((prev) =>
-      prev.map((category) =>
-        category.id === editingCategoryId ? { ...category, title: trimmed } : category,
-      ),
-    )
+    if (!orgId) {
+      toast({
+        title: "Cannot update category",
+        description: "You need to be part of an organisation to edit categories.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await updateOperationsCategory(supabase, editingCategoryId, trimmed)
+      setData((prev) => {
+        const next = prev.map((category) =>
+          category.id === editingCategoryId ? { ...category, title: trimmed } : category,
+        )
+        next.sort((a, b) => a.title.localeCompare(b.title))
+        return next
+      })
+    } catch (error) {
+      console.error("Failed to update category", error)
+      toast({
+        title: "Failed to update category",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+    }
 
     setEditingCategoryId(null)
     setEditingCategoryTitle("")
   }
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     const category = data.find((item) => item.id === categoryId)
     if (!category) return
 
@@ -2353,6 +2696,27 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
         `Delete category "${category.title}" and all associated Processes?`,
       )
       if (!confirmed) return
+    }
+
+    if (!orgId) {
+      toast({
+        title: "Cannot delete category",
+        description: "You need to be part of an organisation to delete categories.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      await deleteOperationsCategoryCascade(supabase, categoryId)
+    } catch (error) {
+      console.error("Failed to delete category", error)
+      toast({
+        title: "Failed to delete category",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+      return
     }
 
     const containsSelected = selectedSOP
@@ -2371,6 +2735,37 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       delete next[categoryId]
       return next
     })
+
+    const sopIds = category.sops.map((sop) => sop.id)
+    if (sopIds.length > 0) {
+      setProcessSettingsByProcessId((prev) => {
+        const next = { ...prev }
+        sopIds.forEach((id) => {
+          if (next[id]) {
+            delete next[id]
+          }
+        })
+        return next
+      })
+      setTasksByProcessId((prev) => {
+        const next = { ...prev }
+        sopIds.forEach((id) => {
+          if (next[id]) {
+            delete next[id]
+          }
+        })
+        return next
+      })
+      setWorkflowByProcessId((prev) => {
+        const next = { ...prev }
+        sopIds.forEach((id) => {
+          if (next[id]) {
+            delete next[id]
+          }
+        })
+        return next
+      })
+    }
 
     if (editingCategoryId === categoryId) {
       cancelEditCategory()
@@ -2407,7 +2802,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     })
   }
 
-  const handleAddSop = (categoryId: string) => {
+  const handleAddSop = async (categoryId: string) => {
     const category = data.find((item) => item.id === categoryId)
     if (!category) return
 
@@ -2424,52 +2819,100 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     const prompt = form.content.trim()
     const content = buildSopContent(trimmedTitle, prompt)
 
-    const today = new Date().toISOString().split("T")[0]
-    const baseId = slugify(trimmedTitle) || "sop"
-    const sopId = `${baseId}-${Date.now()}`
-    const firstSubcategoryId = category.subcategories[0]?.id ?? `${categoryId}-general`
-
-    const newSop: Sop = {
-      id: sopId,
-      title: trimmedTitle,
-      subcategoryId: firstSubcategoryId,
-      owner,
-      lastUpdated: today,
-      status: "in-design",
-      content,
-      processSettings: {
-        owner,
-        processType: "one-time",
-        oneTimeDeadline: null,
-        recurrence: {
-          frequency: "monthly",
-          customDays: [],
-          time: "09:00",
-          timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
-        },
-        vaultAccess: [],
-      },
+    if (!orgId) {
+      toast({
+        title: "Cannot add process",
+        description: "You need to be part of an organisation to create processes.",
+        variant: "destructive",
+      })
+      return
     }
 
-    setData((prev) =>
-      prev.map((item) => {
-        if (item.id !== categoryId) return item
+    const settings: ProcessSettings = {
+      owner,
+      processType: "one-time",
+      oneTimeDeadline: null,
+      recurrence: {
+        frequency: "monthly",
+        customDays: [],
+        time: "09:00",
+        timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
+      },
+      vaultAccess: [],
+    }
 
-        const hasSubcategories = item.subcategories.length > 0
-        return {
-          ...item,
-          subcategories: hasSubcategories
+    const firstSubcategoryId = category.subcategories[0]?.id ?? `${categoryId}-general`
+    const metadata: ProcessMetadata = {
+      ownerDisplayName: owner,
+      oneTimeDeadline: null,
+      backlogTasks: [],
+    }
+
+    try {
+      const { process } = await createOperationsProcess(supabase, {
+        orgId,
+        subcategoryId: firstSubcategoryId,
+        title: trimmedTitle,
+        content,
+        settings,
+        metadata,
+      })
+
+      const today = new Date().toISOString().split("T")[0]
+      const processId = process.id
+      const resolvedSubcategoryId = process.subcategory_id ?? firstSubcategoryId
+      const newSop: Sop = {
+        id: processId,
+        title: process.name,
+        subcategoryId: resolvedSubcategoryId,
+        owner,
+        lastUpdated: today,
+        status: (process.status as SopStatus) ?? "in-design",
+        content: process.content ?? content,
+        processSettings: settings,
+      }
+
+      setData((prev) =>
+        prev.map((item) => {
+          if (item.id !== categoryId) return item
+
+          const hasSubcategories = item.subcategories.length > 0
+          const updatedSubcategories = hasSubcategories
             ? item.subcategories
-            : [{ id: firstSubcategoryId, title: "General" }],
-          sops: [...item.sops, newSop],
-        }
-      }),
-    )
+            : [{ id: resolvedSubcategoryId, title: "General" }]
 
-    setNewSopInputs((prev) => ({
-      ...prev,
-      [categoryId]: { title: "", owner: PROCESS_CREATOR_NAME, content: "" },
-    }))
+          const updatedSops = [...item.sops, newSop].sort((a, b) =>
+            a.title.localeCompare(b.title),
+          )
+
+          return {
+            ...item,
+            subcategories: updatedSubcategories,
+            sops: updatedSops,
+          }
+        }),
+      )
+
+      setProcessSettingsByProcessId((prev) => ({
+        ...prev,
+        [processId]: settings,
+      }))
+      setTasksByProcessId((prev) => ({ ...prev, [processId]: [] }))
+      setWorkflowByProcessId((prev) => ({ ...prev, [processId]: { nodes: [], edges: [] } }))
+      setExpanded((prev) => ({ ...prev, [categoryId]: true }))
+      setShowAddSop((prev) => ({ ...prev, [categoryId]: false }))
+      setNewSopInputs((prev) => ({
+        ...prev,
+        [categoryId]: { title: "", owner: PROCESS_CREATOR_NAME, content: "" },
+      }))
+    } catch (error) {
+      console.error("Failed to create process", error)
+      toast({
+        title: "Failed to create process",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleSubmitProcessViewerPrompt = () => {
@@ -2490,7 +2933,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setShowCategorySelection(true)
   }
 
-  const handleConfirmProcessViewerPrompt = () => {
+  const handleConfirmProcessViewerPrompt = async () => {
     if (!pendingProcessViewerPrompt) {
       return
     }
@@ -2509,68 +2952,124 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       return
     }
 
-    const timestamp = Date.now()
-    const baseId = slugify(pendingProcessViewerPrompt.title) || "sop"
-    const sopId = `${baseId}-${timestamp}`
-    const firstSubcategoryId = category.subcategories[0]?.id ?? `${resolvedCategoryId}-general`
+    if (!orgId) {
+      toast({
+        title: "Cannot add process",
+        description: "You need to be part of an organisation to create processes.",
+        variant: "destructive",
+      })
+      return
+    }
+
     const owner = PROCESS_CREATOR_NAME
-    const today = new Date().toISOString().split("T")[0]
     const content = buildSopContent(
       pendingProcessViewerPrompt.title,
       pendingProcessViewerPrompt.prompt,
     )
-
-    const newSop: Sop = {
-      id: sopId,
-      title: pendingProcessViewerPrompt.title,
-      subcategoryId: firstSubcategoryId,
+    const settings: ProcessSettings = {
       owner,
-      lastUpdated: today,
-      status: "in-design",
-      content,
-      processSettings: {
-        owner,
-        processType: "one-time",
-        oneTimeDeadline: null,
-        recurrence: {
-          frequency: "monthly",
-          customDays: [],
-          time: "09:00",
-          timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
-        },
-        vaultAccess: [],
+      processType: "one-time",
+      oneTimeDeadline: null,
+      recurrence: {
+        frequency: "monthly",
+        customDays: [],
+        time: "09:00",
+        timezone: TIMEZONE_OPTIONS[0] ?? "UTC",
       },
+      vaultAccess: [],
+    }
+    const firstSubcategoryId = category.subcategories[0]?.id ?? `${resolvedCategoryId}-general`
+    const metadata: ProcessMetadata = {
+      ownerDisplayName: owner,
+      oneTimeDeadline: null,
+      backlogTasks: [],
     }
 
-    setData((prev) =>
-      prev.map((item) => {
-        if (item.id !== resolvedCategoryId) return item
+    try {
+      const { process } = await createOperationsProcess(supabase, {
+        orgId,
+        subcategoryId: firstSubcategoryId,
+        title: pendingProcessViewerPrompt.title,
+        content,
+        settings,
+        metadata,
+      })
 
-        const hasSubcategories = item.subcategories.length > 0
+      const today = new Date().toISOString().split("T")[0]
+      const processId = process.id
+      const resolvedSubcategoryId = process.subcategory_id ?? firstSubcategoryId
+      const newSop: Sop = {
+        id: processId,
+        title: process.name,
+        subcategoryId: resolvedSubcategoryId,
+        owner,
+        lastUpdated: today,
+        status: (process.status as SopStatus) ?? "in-design",
+        content: process.content ?? content,
+        processSettings: settings,
+      }
 
-        return {
-          ...item,
-          subcategories: hasSubcategories
+      setData((prev) =>
+        prev.map((item) => {
+          if (item.id !== resolvedCategoryId) return item
+
+          const hasSubcategories = item.subcategories.length > 0
+          const updatedSubcategories = hasSubcategories
             ? item.subcategories
-            : [{ id: firstSubcategoryId, title: "General" }],
-          sops: [...item.sops, newSop],
-        }
-      }),
-    )
+            : [{ id: resolvedSubcategoryId, title: "General" }]
 
-    setExpanded((prev) => ({ ...prev, [resolvedCategoryId]: true }))
-    setShowCategorySelection(false)
-    setPendingProcessViewerPrompt(null)
-    setProcessViewerPromptTitle("")
-    setProcessViewerPrompt("")
-    setSelectedCategoryForViewerPrompt(resolvedCategoryId)
-    handleSelectSop(newSop)
+          const updatedSops = [...item.sops, newSop].sort((a, b) =>
+            a.title.localeCompare(b.title),
+          )
+
+          return {
+            ...item,
+            subcategories: updatedSubcategories,
+            sops: updatedSops,
+          }
+        }),
+      )
+
+      setProcessSettingsByProcessId((prev) => ({
+        ...prev,
+        [processId]: settings,
+      }))
+      setTasksByProcessId((prev) => ({ ...prev, [processId]: [] }))
+      setWorkflowByProcessId((prev) => ({ ...prev, [processId]: { nodes: [], edges: [] } }))
+
+      setExpanded((prev) => ({ ...prev, [resolvedCategoryId]: true }))
+      setShowCategorySelection(false)
+      setPendingProcessViewerPrompt(null)
+      setProcessViewerPromptTitle("")
+      setProcessViewerPrompt("")
+      setSelectedCategoryForViewerPrompt(resolvedCategoryId)
+      handleSelectSop(newSop)
+    } catch (error) {
+      console.error("Failed to create process", error)
+      toast({
+        title: "Failed to create process",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleDeleteSop = (categoryId: string, sopId: string) => {
+  const handleDeleteSop = async (categoryId: string, sopId: string) => {
     if (typeof window !== "undefined") {
       const confirmed = window.confirm("Delete this Process?")
       if (!confirmed) return
+    }
+
+    try {
+      await deleteOperationsProcessCascade(supabase, sopId)
+    } catch (error) {
+      console.error("Failed to delete process", error)
+      toast({
+        title: "Failed to delete process",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+      return
     }
 
     setData((prev) =>
@@ -2580,6 +3079,25 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
           : category,
       ),
     )
+
+    setProcessSettingsByProcessId((prev) => {
+      if (!prev[sopId]) return prev
+      const next = { ...prev }
+      delete next[sopId]
+      return next
+    })
+    setTasksByProcessId((prev) => {
+      if (!prev[sopId]) return prev
+      const next = { ...prev }
+      delete next[sopId]
+      return next
+    })
+    setWorkflowByProcessId((prev) => {
+      if (!prev[sopId]) return prev
+      const next = { ...prev }
+      delete next[sopId]
+      return next
+    })
 
     if (selectedSOP?.id === sopId) {
       clearSelectedSop()
@@ -2603,7 +3121,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setEditingSop(null)
   }
 
-  const saveSopEdit = () => {
+  const saveSopEdit = async () => {
     if (!editingSop) return
 
     const trimmedTitle = editingSop.title.trim()
@@ -2611,6 +3129,9 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
 
     const owner = editingSop.owner.trim() || OWNER_OPTIONS[0] || "Process Owner"
     const today = new Date().toISOString().split("T")[0]
+
+    const existingSettings = getProcessSettingsForProcess(editingSop.id)
+    const updatedSettings: ProcessSettings = { ...existingSettings, owner }
 
     setData((prev) =>
       prev.map((category) => {
@@ -2633,6 +3154,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       }),
     )
 
+    setProcessSettingsByProcessId((prev) => ({
+      ...prev,
+      [editingSop.id]: updatedSettings,
+    }))
+
     if (selectedSOP?.id === editingSop.id) {
       setSelectedSOP((prev) =>
         prev
@@ -2645,9 +3171,26 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
             }
           : prev,
       )
+      setProcessSettings((prev) => (prev ? { ...prev, owner } : prev))
     }
 
     setEditingSop(null)
+
+    const metadata = buildMetadataForProcess(editingSop.id)
+    metadata.ownerDisplayName = owner
+    metadata.oneTimeDeadline = updatedSettings.oneTimeDeadline ?? null
+
+    try {
+      await updateOperationsProcess(supabase, editingSop.id, { title: trimmedTitle })
+      await saveProcessSettings(supabase, editingSop.id, updatedSettings, metadata)
+    } catch (error) {
+      console.error("Failed to update process", error)
+      toast({
+        title: "Failed to update process",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleProcessSettingsChange = useCallback(
@@ -2670,8 +3213,10 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       setSelectedSOP((prev) =>
         prev ? { ...prev, owner: settings.owner, processSettings: settings } : prev,
       )
+
+      scheduleProcessSettingsSave(selectedSOP.id, settings)
     },
-    [selectedSOP],
+    [selectedSOP, scheduleProcessSettingsSave],
   )
 
   const handleOneTimeDeadlineUpdate = useCallback(
@@ -2701,29 +3246,131 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       return
     }
 
-    const steps = extractPlainText(selectedSOP.content)
-      .split(/\n+/)
-      .filter((line) => line.trim().match(/^\d+\./))
-      .map((line, index) => ({
-        id: index + 1,
-        text: line.replace(/^\d+\.\s*/, ""),
-        due: "",
-        completed: false,
-        completedBy: "",
-        completedAt: null,
-        nodeId: null,
-      }))
+    const settings = processSettingsByProcessId[selectedSOP.id] ?? selectedSOP.processSettings
+    const storedTasks = tasksByProcessId[selectedSOP.id]
+    const workflow = workflowByProcessId[selectedSOP.id] ?? null
 
-    setTasks(steps)
-    setProcessSettings(selectedSOP.processSettings)
-    setCurrentWorkflow(null)
-  }, [selectedSOP])
+    if (storedTasks && storedTasks.length > 0) {
+      setTasks(storedTasks)
+    } else {
+      const steps = extractPlainText(selectedSOP.content)
+        .split(/\n+/)
+        .filter((line) => line.trim().match(/^\d+\./))
+        .map((line, index) => ({
+          id: `${selectedSOP.id}-step-${index + 1}`,
+          text: line.replace(/^\d+\.\s*/, ""),
+          due: "",
+          completed: false,
+          completedBy: "",
+          completedAt: null,
+          nodeId: null,
+        }))
+
+      setTasks(steps)
+    }
+
+    setProcessSettings(settings)
+    setCurrentWorkflow(workflow)
+  }, [selectedSOP, processSettingsByProcessId, tasksByProcessId, workflowByProcessId])
+
+  useEffect(() => {
+    if (!selectedSOP) {
+      return
+    }
+
+    setTasksByProcessId((prev) => ({ ...prev, [selectedSOP.id]: tasks }))
+  }, [selectedSOP, tasks])
+
+  useEffect(() => {
+    if (!selectedSOP || !isCatalogLoaded) {
+      return
+    }
+
+    const processId = selectedSOP.id
+
+    if (!tasksInitialisedRef.current.has(processId)) {
+      tasksInitialisedRef.current.add(processId)
+      return
+    }
+
+    if (tasksSaveTimeoutRef.current) {
+      clearTimeout(tasksSaveTimeoutRef.current)
+    }
+
+    tasksSaveTimeoutRef.current = setTimeout(() => {
+      const workflowForProcess =
+        processId === selectedSOP.id && currentWorkflow
+          ? currentWorkflow
+          : workflowByProcessId[processId] ?? { nodes: [], edges: [] }
+      const nodeIds = (workflowForProcess.nodes ?? []).map((node) => node.id)
+      const metadata = buildMetadataForProcess(processId)
+
+      void (async () => {
+        try {
+          metadata.backlogTasks = metadata.backlogTasks ?? []
+          await saveProcessTasks(supabase, processId, tasks, nodeIds, metadata)
+        } catch (error) {
+          console.error("Failed to save tasks", error)
+          toast({
+            title: "Failed to save tasks",
+            description: error instanceof Error ? error.message : "Please try again later.",
+            variant: "destructive",
+          })
+        }
+      })()
+      tasksSaveTimeoutRef.current = null
+    }, 800)
+
+    return () => {
+      if (tasksSaveTimeoutRef.current) {
+        clearTimeout(tasksSaveTimeoutRef.current)
+        tasksSaveTimeoutRef.current = null
+      }
+    }
+  }, [
+    tasks,
+    selectedSOP,
+    currentWorkflow,
+    workflowByProcessId,
+    isCatalogLoaded,
+    supabase,
+    buildMetadataForProcess,
+    toast,
+  ])
+
+  useEffect(() => {
+    if (!selectedSOP || !processSettings) {
+      return
+    }
+
+    setProcessSettingsByProcessId((prev) => ({
+      ...prev,
+      [selectedSOP.id]: processSettings,
+    }))
+  }, [selectedSOP, processSettings])
 
   const filteredData = filterData(data, query)
   const processViewerPromptDisabled =
     !processViewerPromptTitle.trim() || !processViewerPrompt.trim() || data.length === 0
   const pendingProcessViewerTitle =
     pendingProcessViewerPrompt?.title ?? processViewerPromptTitle.trim()
+
+  useEffect(() => {
+    return () => {
+      if (contentSaveTimeoutRef.current) {
+        clearTimeout(contentSaveTimeoutRef.current)
+      }
+      if (workflowSaveTimeoutRef.current) {
+        clearTimeout(workflowSaveTimeoutRef.current)
+      }
+      if (settingsSaveTimeoutRef.current) {
+        clearTimeout(settingsSaveTimeoutRef.current)
+      }
+      if (tasksSaveTimeoutRef.current) {
+        clearTimeout(tasksSaveTimeoutRef.current)
+      }
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">
