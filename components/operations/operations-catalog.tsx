@@ -30,6 +30,7 @@ import {
 } from "../ui/dropdown-menu"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog"
 import { Textarea } from "../ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select"
 
 import { cn } from "@/lib/utils"
 import { deadlinesAreEqual } from "@/lib/workflow-utils"
