@@ -111,6 +111,37 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import type { Database } from "@/types/supabase"
 
+const ORG_ID_CANDIDATE_KEYS = [
+  "org_id",
+  "orgId",
+  "organization_id",
+  "organizationId",
+  "organisation_id",
+  "organisationId",
+]
+
+const extractOrgId = (
+  metadata: Record<string, unknown> | undefined,
+): string | undefined => {
+  if (!metadata) {
+    return undefined
+  }
+
+  for (const key of ORG_ID_CANDIDATE_KEYS) {
+    const value = metadata[key]
+    if (typeof value === "string" && value.trim()) {
+      return value
+    }
+  }
+
+  const nestedOrg = metadata.org ?? metadata.organization ?? metadata.organisation
+  if (nestedOrg && typeof nestedOrg === "object") {
+    return extractOrgId(nestedOrg as Record<string, unknown>)
+  }
+
+  return undefined
+}
+
 type ProcessSettings = ProcessSettingsData
 type Subcategory = CatalogSubcategory
 type Sop = CatalogSop
@@ -2131,12 +2162,14 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
   const tasksInitialisedRef = useRef<Set<string>>(new Set())
 
   const orgId = useMemo(() => {
-    const metadata = (session?.user?.app_metadata ?? session?.user?.user_metadata) as
+    const appMetadata = session?.user?.app_metadata as
+      | Record<string, unknown>
+      | undefined
+    const userMetadata = session?.user?.user_metadata as
       | Record<string, unknown>
       | undefined
 
-    const value = metadata?.org_id
-    return typeof value === "string" ? value : undefined
+    return extractOrgId(appMetadata) ?? extractOrgId(userMetadata)
   }, [session])
 
   const router = useRouter()
