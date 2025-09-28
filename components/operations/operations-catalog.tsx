@@ -272,14 +272,14 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       : baseId
     const defaultSubcategoryId = `${uniqueId}-general`
 
-    const { data: insertedCategory, error } = await supabase
+    const { data: insertedCategory, error: insertCategoryError } = await supabase
       .from("operations_categories")
       .insert({ title: trimmed })
       .select("id")
       .single()
 
-    if (error) {
-      console.error("Failed to persist category", error)
+    if (insertCategoryError) {
+      console.error("Failed to persist category", insertCategoryError)
       return
     }
 
@@ -291,12 +291,12 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       supabaseId: insertedCategory?.id,
     }
 
-    const { error } = await supabase
+    const { error: upsertCategoryError } = await supabase
       .from("operations_categories")
       .upsert({ id: uniqueId, title: trimmed })
 
-    if (error) {
-      console.error("Failed to persist category", error)
+    if (upsertCategoryError) {
+      console.error("Failed to persist category", upsertCategoryError)
       return
     }
 
