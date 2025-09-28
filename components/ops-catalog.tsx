@@ -125,6 +125,7 @@ type Category = {
   title: string
   subcategories: Subcategory[]
   sops: Sop[]
+  supabaseId?: string
 }
 
 interface OpsCatalogProps {
@@ -2301,11 +2302,23 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       : baseId
     const defaultSubcategoryId = `${uniqueId}-general`
 
+    const { data: insertedCategory, error } = await supabase
+      .from("operations_categories")
+      .insert({ title: trimmed })
+      .select("id")
+      .single()
+
+    if (error) {
+      console.error("Failed to persist category", error)
+      return
+    }
+
     const nextCategory: Category = {
       id: uniqueId,
       title: trimmed,
       subcategories: [{ id: defaultSubcategoryId, title: "General" }],
       sops: [],
+      supabaseId: insertedCategory?.id,
     }
 
     const { error } = await supabase
@@ -2372,14 +2385,18 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       ? category.sops.some((sop) => sop.id === selectedSOP.id)
       : false
 
-    const { error } = await supabase
-      .from("operations_categories")
-      .delete()
-      .eq("id", categoryId)
+    if (category.supabaseId) {
+      const { error } = await supabase
+        .from("operations_categories")
+        .delete()
+        .eq("id", category.supabaseId)
 
-    if (error) {
-      console.error("Failed to remove category", error)
-      return
+      if (error) {
+        console.error("Failed to remove category", error)
+        return
+      }
+
+ main
     }
 
     setData((prev) => prev.filter((item) => item.id !== categoryId))
