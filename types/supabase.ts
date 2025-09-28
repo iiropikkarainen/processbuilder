@@ -67,6 +67,48 @@ export type Database = {
         }
         Relationships: []
       }
+      processes: {
+        Row: {
+          id: string
+          org_id: string | null
+          name: string
+          description: string | null
+          status: string | null
+          content: string | null
+          category_id: string | null
+          created_at: string | null
+          updated_at: string | null
+          created_by: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          org_id?: string | null
+          name: string
+          description?: string | null
+          status?: string | null
+          content?: string | null
+          category_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          org_id?: string | null
+          name?: string
+          description?: string | null
+          status?: string | null
+          content?: string | null
+          category_id?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          created_by?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       tickets: GenericTable
       ticket_comments: GenericTable
       ticket_assignments: GenericTable
