@@ -1233,13 +1233,13 @@ export function ProcessEditor({
     triggerChange()
   }, [restoreSelection, triggerChange])
 
-  const handleLink = () => {
+  const handleLink = useCallback(() => {
     if (typeof window === "undefined") return
     const url = window.prompt("Enter the URL")
     if (!url) return
     const normalized = url.startsWith("http") ? url : `https://${url}`
     applyCommand("createLink", normalized)
-  }
+  }, [applyCommand])
 
   const handleSlashSelect = (item: SlashMenuItem) => {
     removeSlashTrigger()
@@ -1284,120 +1284,134 @@ export function ProcessEditor({
     }
   }
 
-  const toolbarActions: ToolbarAction[] = [
-    {
-      id: "bold",
-      label: "Bold",
-      icon: Bold,
-      shortcut: "⌘B",
-      isActive: activeFormats.bold,
-      onSelect: () => applyCommand("bold"),
-    },
-    {
-      id: "italic",
-      label: "Italic",
-      icon: Italic,
-      shortcut: "⌘I",
-      isActive: activeFormats.italic,
-      onSelect: () => applyCommand("italic"),
-    },
-    {
-      id: "underline",
-      label: "Underline",
-      icon: Underline,
-      shortcut: "⌘U",
-      isActive: activeFormats.underline,
-      onSelect: () => applyCommand("underline"),
-    },
-    {
-      id: "strike",
-      label: "Strikethrough",
-      icon: Strikethrough,
-      isActive: activeFormats.strike,
-      onSelect: () => applyCommand("strikeThrough"),
-    },
-    {
-      id: "heading1",
-      label: "Heading 1",
-      icon: Heading1,
-      isActive: activeFormats.heading1,
-      onSelect: () => insertHeading(1),
-    },
-    {
-      id: "heading2",
-      label: "Heading 2",
-      icon: Heading2,
-      isActive: activeFormats.heading2,
-      onSelect: () => insertHeading(2),
-    },
-    {
-      id: "ordered",
-      label: "Numbered list",
-      icon: ListOrdered,
-      shortcut: "⇧⌘7",
-      isActive: activeFormats.orderedList,
-      onSelect: () => insertList("ol"),
-    },
-    {
-      id: "unordered",
-      label: "Bulleted list",
-      icon: List,
-      shortcut: "⇧⌘8",
-      isActive: activeFormats.unorderedList,
-      onSelect: () => insertList("ul"),
-    },
-    {
-      id: "checklist",
-      label: "Checklist",
-      icon: ListChecks,
-      onSelect: () => insertChecklist(),
-    },
-    {
-      id: "quote",
-      label: "Quote",
-      icon: Quote,
-      isActive: activeFormats.quote,
-      onSelect: insertQuote,
-    },
-    {
-      id: "divider",
-      label: "Divider",
-      icon: Minus,
-      onSelect: insertDivider,
-    },
-    {
-      id: "code",
-      label: "Code block",
-      icon: ClipboardCopy,
-      onSelect: insertCodeBlock,
-    },
-    {
-      id: "ai",
-      label: "AI prompt",
-      icon: Sparkles,
-      onSelect: insertAiPrompt,
-    },
-    {
-      id: "link",
-      label: "Link",
-      icon: Link2,
-      onSelect: handleLink,
-    },
-    {
-      id: "undo",
-      label: "Undo",
-      icon: Undo2,
-      shortcut: "⌘Z",
-      onSelect: () => applyCommand("undo"),
-    },
-    {
-      id: "redo",
-      label: "Redo",
-      icon: Redo2,
-      shortcut: "⇧⌘Z",
-      onSelect: () => applyCommand("redo"),
-    },
-  ]
+  const toolbarActions: ToolbarAction[] = useMemo(
+    () => [
+      {
+        id: "bold",
+        label: "Bold",
+        icon: Bold,
+        shortcut: "⌘B",
+        isActive: activeFormats.bold,
+        onSelect: () => applyCommand("bold"),
+      },
+      {
+        id: "italic",
+        label: "Italic",
+        icon: Italic,
+        shortcut: "⌘I",
+        isActive: activeFormats.italic,
+        onSelect: () => applyCommand("italic"),
+      },
+      {
+        id: "underline",
+        label: "Underline",
+        icon: Underline,
+        shortcut: "⌘U",
+        isActive: activeFormats.underline,
+        onSelect: () => applyCommand("underline"),
+      },
+      {
+        id: "strike",
+        label: "Strikethrough",
+        icon: Strikethrough,
+        isActive: activeFormats.strike,
+        onSelect: () => applyCommand("strikeThrough"),
+      },
+      {
+        id: "heading1",
+        label: "Heading 1",
+        icon: Heading1,
+        isActive: activeFormats.heading1,
+        onSelect: () => insertHeading(1),
+      },
+      {
+        id: "heading2",
+        label: "Heading 2",
+        icon: Heading2,
+        isActive: activeFormats.heading2,
+        onSelect: () => insertHeading(2),
+      },
+      {
+        id: "ordered",
+        label: "Numbered list",
+        icon: ListOrdered,
+        shortcut: "⇧⌘7",
+        isActive: activeFormats.orderedList,
+        onSelect: () => insertList("ol"),
+      },
+      {
+        id: "unordered",
+        label: "Bulleted list",
+        icon: List,
+        shortcut: "⇧⌘8",
+        isActive: activeFormats.unorderedList,
+        onSelect: () => insertList("ul"),
+      },
+      {
+        id: "checklist",
+        label: "Checklist",
+        icon: ListChecks,
+        onSelect: () => insertChecklist(),
+      },
+      {
+        id: "quote",
+        label: "Quote",
+        icon: Quote,
+        isActive: activeFormats.quote,
+        onSelect: insertQuote,
+      },
+      {
+        id: "divider",
+        label: "Divider",
+        icon: Minus,
+        onSelect: insertDivider,
+      },
+      {
+        id: "code",
+        label: "Code block",
+        icon: ClipboardCopy,
+        onSelect: insertCodeBlock,
+      },
+      {
+        id: "ai",
+        label: "AI prompt",
+        icon: Sparkles,
+        onSelect: insertAiPrompt,
+      },
+      {
+        id: "link",
+        label: "Link",
+        icon: Link2,
+        onSelect: handleLink,
+      },
+      {
+        id: "undo",
+        label: "Undo",
+        icon: Undo2,
+        shortcut: "⌘Z",
+        onSelect: () => applyCommand("undo"),
+      },
+      {
+        id: "redo",
+        label: "Redo",
+        icon: Redo2,
+        shortcut: "⇧⌘Z",
+        onSelect: () => applyCommand("redo"),
+      },
+    ],
+    [
+      activeFormats,
+      applyCommand,
+      handleLink,
+      insertAiPrompt,
+      insertChecklist,
+      insertCodeBlock,
+      insertDivider,
+      insertHeading,
+      insertList,
+      insertQuote,
+    ],
+  )
 
   return (
     <TooltipProvider>
