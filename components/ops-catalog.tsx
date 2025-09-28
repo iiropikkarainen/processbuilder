@@ -2321,6 +2321,15 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       supabaseId: insertedCategory?.id,
     }
 
+    const { error } = await supabase
+      .from("operations_categories")
+      .upsert({ id: uniqueId, title: trimmed })
+
+    if (error) {
+      console.error("Failed to persist category", error)
+      return
+    }
+
     setData((prev) => [...prev, nextCategory])
     setExpanded((prev) => ({ ...prev, [uniqueId]: true }))
     setNewCategoryTitle("")
@@ -2386,6 +2395,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
         console.error("Failed to remove category", error)
         return
       }
+
+ main
     }
 
     setData((prev) => prev.filter((item) => item.id !== categoryId))
