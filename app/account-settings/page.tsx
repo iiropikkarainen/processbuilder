@@ -94,6 +94,7 @@ export default function AccountSettingsPage() {
   const [timezone, setTimezone] = useState("America/New_York")
   const [workingHours, setWorkingHours] = useState({ start: "09:00", end: "17:00" })
   const [userType, setUserType] = useState<"Super user" | "Admin" | "User">("User")
+  const [orgName, setOrgName] = useState("")
 
   useEffect(() => {
     setProfile((previous) => ({
@@ -129,8 +130,27 @@ export default function AccountSettingsPage() {
           end: data.working_hours_end ?? "17:00",
         })
         setUserType(data.user_type ?? "User")
+
+        if (data.org_id) {
+          const { data: org, error: orgError } = await supabase
+            .from("organisations")
+            .select("name")
+            .eq("id", data.org_id)
+            .maybeSingle()
+
+          if (!isMounted) return
+
+          if (orgError && orgError.code !== "PGRST116") {
+            console.error("❌ Failed to load organisation:", orgError)
+          }
+
+          setOrgName(org?.name ?? "")
+        } else {
+          setOrgName("")
+        }
       } else {
         setProfile({ name: sessionFullName, email: sessionEmail })
+        setOrgName("")
       }
     }
 
@@ -142,10 +162,35 @@ export default function AccountSettingsPage() {
   }, [userId, supabase, sessionFullName, sessionEmail])
 
   async function handleSave() {
-    console.log("🖱️ Save button clicked, userId:", userId)
     if (!userId) return
     const nameToSave = profile.name.trim() || sessionFullName
     const emailToSave = profile.email.trim() || sessionEmail
+    const trimmedOrgName = orgName.trim()
+    let resolvedOrgId: string | null = null
+
+    if (trimmedOrgName) {
+      const slug = trimmedOrgName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+
+      const { data: org, error: orgError } = await supabase
+        .from("organisations")
+        .upsert(
+          { name: trimmedOrgName, slug },
+          { onConflict: "name" }
+        )
+        .select("id")
+        .single()
+
+      if (orgError) {
+        console.error("❌ Failed to upsert organisation:", orgError)
+        return
+      }
+
+      resolvedOrgId = org?.id ?? null
+    }
+
     const { data, error } = await supabase
       .from("users")
       .upsert({
@@ -153,6 +198,7 @@ export default function AccountSettingsPage() {
         full_name: nameToSave,
         email: emailToSave,
         default_team_id: defaultTeamId,
+        org_id: resolvedOrgId,
         notifications,
         timezone,
         working_hours_start: workingHours.start,
@@ -167,6 +213,7 @@ export default function AccountSettingsPage() {
       console.error("❌ Failed to save user profile:", error)
     } else {
       setProfile({ name: nameToSave, email: emailToSave })
+      setOrgName(trimmedOrgName)
       console.log("✅ Profile saved:", data)
     }
   }
@@ -241,6 +288,42 @@ export default function AccountSettingsPage() {
               </p>
               <div className="flex justify-end">
                 <Button size="sm" onClick={handleSave}>Save profile</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="h-full">
+            <CardHeader>
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Organisation</CardTitle>
+                  <CardDescription>
+                    Create or join an organisation by entering its name. We&apos;ll handle the lookup for you.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="org-name">Organisation name</Label>
+                <Input
+                  id="org-name"
+                  value={orgName}
+                  onChange={(event) => setOrgName(event.target.value)}
+                  placeholder="Acme Corp"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                On save, ProcessBuilder will either match an existing organisation or create a new one and link
+                your user to it.
+              </p>
+              <div className="flex justify-end">
+                <Button size="sm" variant="outline" onClick={handleSave}>
+                  Save organisation
+                </Button>
               </div>
             </CardContent>
           </Card>
