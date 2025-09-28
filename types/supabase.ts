@@ -49,6 +49,24 @@ export type Database = {
         }
         Relationships: []
       }
+      operations_categories: {
+        Row: {
+          id: string
+          title: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          title: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          title?: string
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       tickets: GenericTable
       ticket_comments: GenericTable
       ticket_assignments: GenericTable

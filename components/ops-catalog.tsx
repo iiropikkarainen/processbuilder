@@ -11,6 +11,7 @@ import {
   type SetStateAction,
 } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { useSupabaseClient } from "@supabase/auth-helpers-react"
 import {
   Calendar as CalendarIcon,
   CheckCircle2,
@@ -86,6 +87,7 @@ import type {
   OutputRequirementType,
   OutputSubmission,
 } from "@/lib/types"
+import type { Database } from "@/types/supabase"
 
 type Subcategory = {
   id: string
@@ -2101,6 +2103,8 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     Record<string, OutputSubmission | undefined>
   >({})
 
+  const supabase = useSupabaseClient<Database>()
+
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -2287,7 +2291,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     }
   }
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     const trimmed = newCategoryTitle.trim()
     if (!trimmed) return
 
@@ -2302,6 +2306,15 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
       title: trimmed,
       subcategories: [{ id: defaultSubcategoryId, title: "General" }],
       sops: [],
+    }
+
+    const { error } = await supabase
+      .from("operations_categories")
+      .upsert({ id: uniqueId, title: trimmed })
+
+    if (error) {
+      console.error("Failed to persist category", error)
+      return
     }
 
     setData((prev) => [...prev, nextCategory])
@@ -2344,7 +2357,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     setEditingCategoryTitle("")
   }
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
     const category = data.find((item) => item.id === categoryId)
     if (!category) return
 
@@ -2358,6 +2371,16 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     const containsSelected = selectedSOP
       ? category.sops.some((sop) => sop.id === selectedSOP.id)
       : false
+
+    const { error } = await supabase
+      .from("operations_categories")
+      .delete()
+      .eq("id", categoryId)
+
+    if (error) {
+      console.error("Failed to remove category", error)
+      return
+    }
 
     setData((prev) => prev.filter((item) => item.id !== categoryId))
     setExpanded((prev) => {
@@ -2870,7 +2893,7 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                               <DropdownMenuItem
                                 onSelect={(event) => {
                                   event.preventDefault()
-                                  handleDeleteCategory(category.id)
+                                  void handleDeleteCategory(category.id)
                                 }}
                                 className="text-red-600 focus:text-red-600"
                               >
