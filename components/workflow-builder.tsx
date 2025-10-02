@@ -514,6 +514,7 @@ export default function WorkflowBuilder({
               onPaneClick={onPaneClick}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
+              proOptions={{ hideAttribution: true }}
               fitView
               snapToGrid
               snapGrid={[15, 15]}

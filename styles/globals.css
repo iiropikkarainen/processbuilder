@@ -152,4 +152,7 @@
   [data-nextjs-toast-wrapper] {
     display: none !important;
   }
+  .react-flow__attribution {
+    display: none !important;
+  }
 }
