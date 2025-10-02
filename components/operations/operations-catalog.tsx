@@ -960,11 +960,11 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     pendingProcessViewerPrompt?.title ?? processViewerPromptTitle.trim()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#e5e7eb]">
       <div
         className={cn(
-          "mx-auto grid max-w-6xl gap-6 px-4 py-6",
-          fullscreen ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2",
+          "grid w-full gap-6 px-4 py-6",
+          fullscreen ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[1fr_2fr]",
         )}
       >
         {!fullscreen && (
