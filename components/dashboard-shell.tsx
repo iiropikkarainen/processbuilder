@@ -56,13 +56,15 @@ import {
 } from "@/components/ui/sidebar"
 import type { LucideIcon } from "lucide-react"
 
-const navMain: {
+type NavMainItem = {
   title: string
   url: string
   icon: LucideIcon
   badge?: string
   children?: { title: string; url: string }[]
-}[] = [
+}
+
+const navMain: NavMainItem[] = [
   {
     title: "Insights",
     url: "/insights",
