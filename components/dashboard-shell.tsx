@@ -81,7 +81,7 @@ const navMain: {
   },
   {
     title: "Operations Catalog",
-    url: "/",
+    url: "/operations",
     icon: ListChecks,
     badge: "24",
   },
