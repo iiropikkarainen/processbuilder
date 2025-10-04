@@ -64,13 +64,24 @@ const navMain: {
   children?: { title: string; url: string }[]
 }[] = [
   {
+    title: "Insights",
+    url: "/insights",
+    icon: Sparkles,
+    children: [
+      {
+        title: "Chats",
+        url: "/insights/chats",
+      },
+    ],
+  },
+  {
     title: "Overview",
     url: "/overview",
     icon: LayoutDashboard,
   },
   {
     title: "Operations Catalog",
-    url: "/",
+    url: "/operations",
     icon: ListChecks,
     badge: "24",
   },
