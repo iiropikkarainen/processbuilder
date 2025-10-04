@@ -64,6 +64,17 @@ const navMain: {
   children?: { title: string; url: string }[]
 }[] = [
   {
+    title: "Insights",
+    url: "/insights",
+    icon: Sparkles,
+    children: [
+      {
+        title: "Chats",
+        url: "/insights/chats",
+      },
+    ],
+  },
+  {
     title: "Overview",
     url: "/overview",
     icon: LayoutDashboard,
