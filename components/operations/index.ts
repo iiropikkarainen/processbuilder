@@ -1,1 +1,1 @@
-export { default as OperationsCatalog } from "./operations-catalog"
+export { OperationsCatalog } from "./operations-catalog"
