@@ -60,7 +60,7 @@ import type {
 import { buildSopContent, filterData, slugify } from "./utils"
 import { ProcessEditor, extractPlainText } from "../process-editor"
 
-export default function OpsCatalog({ query }: OpsCatalogProps) {
+export function OperationsCatalog({ query }: OpsCatalogProps) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [selectedSOP, setSelectedSOP] = useState<Sop | null>(null)
   const [data, setData] = useState<Category[]>([])
@@ -1660,3 +1660,5 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
     </div>
   )
 }
+
+export default OperationsCatalog
