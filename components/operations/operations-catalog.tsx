@@ -1025,371 +1025,374 @@ export default function OpsCatalog({ query }: OpsCatalogProps) {
                 No processes found. Try adjusting your search or add a new category.
               </div>
             ) : (
-              filteredData.map((category) => {
-              const sopForm =
-                newSopInputs[category.id] ?? {
-                  title: "",
-                  owner: PROCESS_CREATOR_NAME,
-                  content: "",
-                }
-              const isEditingCategory = editingCategoryId === category.id
-              const newSopDisabled = !sopForm.title.trim()
-              const addSopVisible = Boolean(showAddSop[category.id])
+              <>
+                {filteredData.map((category) => {
+                  const sopForm =
+                    newSopInputs[category.id] ?? {
+                      title: "",
+                      owner: PROCESS_CREATOR_NAME,
+                      content: "",
+                    }
+                  const isEditingCategory = editingCategoryId === category.id
+                  const newSopDisabled = !sopForm.title.trim()
+                  const addSopVisible = Boolean(showAddSop[category.id])
 
-              return (
-                <div
-                  key={category.id}
-                  className="overflow-hidden rounded-2xl border bg-white shadow-sm"
-                >
-                  <div className="flex items-center justify-between gap-2 px-4 py-3">
-                    {isEditingCategory ? (
-                      <div className="flex flex-1 items-center gap-2">
-                        <Input
-                          value={editingCategoryTitle}
-                          onChange={(event) => setEditingCategoryTitle(event.target.value)}
-                          className="h-9"
-                          placeholder="Update category name"
-                        />
-                        <button
-                          onClick={saveCategoryTitle}
-                          disabled={!editingCategoryTitle.trim()}
-                          className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={cancelEditCategory}
-                          className="rounded-lg border px-3 py-2 text-xs hover:bg-gray-50"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => toggle(category.id)}
-                          className="flex flex-1 items-center gap-3 text-left"
-                        >
-                          {expanded[category.id] ? (
-                            <ChevronDown className="h-5 w-5" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5" />
-                          )}
-                          <span className="font-semibold">{category.title}</span>
-                        </button>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleAddSop(category.id)}
-                            aria-pressed={addSopVisible}
-                            aria-label="Toggle Add Process"
-                            className={cn(
-                              "rounded-full p-2 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
-                              addSopVisible && "bg-blue-50 text-blue-600 hover:bg-blue-100",
-                            )}
-                          >
-                            <Plus
-                              className={cn(
-                                "h-4 w-4 transition",
-                                addSopVisible && "rotate-45",
-                              )}
+                  return (
+                    <div
+                      key={category.id}
+                      className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2 px-4 py-3">
+                        {isEditingCategory ? (
+                          <div className="flex flex-1 items-center gap-2">
+                            <Input
+                              value={editingCategoryTitle}
+                              onChange={(event) => setEditingCategoryTitle(event.target.value)}
+                              className="h-9"
+                              placeholder="Update category name"
                             />
-                          </button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <button
+                              onClick={saveCategoryTitle}
+                              disabled={!editingCategoryTitle.trim()}
+                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelEditCategory}
+                              className="rounded-lg border px-3 py-2 text-xs hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => toggle(category.id)}
+                              className="flex flex-1 items-center gap-3 text-left"
+                            >
+                              {expanded[category.id] ? (
+                                <ChevronDown className="h-5 w-5" />
+                              ) : (
+                                <ChevronRight className="h-5 w-5" />
+                              )}
+                              <span className="font-semibold">{category.title}</span>
+                            </button>
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
-                                className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                aria-label={`Category actions for ${category.title}`}
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-40">
-                              <DropdownMenuItem
-                                onSelect={(event) => {
-                                  event.preventDefault()
-                                  startEditCategory(category)
-                                }}
-                              >
-                                <Pencil className="mr-2 h-4 w-4" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={(event) => {
-                                  event.preventDefault()
-                                  void handleDeleteCategory(category.id)
-                                }}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {expanded[category.id] && (
-                    <div className="transition-all">
-                      <ul className="divide-y">
-                        {category.sops.map((sop) => {
-                          const isEditingSop = editingSop?.id === sop.id
-
-                          return (
-                            <li key={sop.id} className="space-y-2 p-3">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex min-w-0 flex-1 items-start gap-3">
-                                  <FileText className="mt-1 h-5 w-5 shrink-0" />
-                                  <div className="min-w-0 space-y-2">
-                                    {isEditingSop ? (
-                                      <Input
-                                        value={editingSop?.title ?? sop.title}
-                                        onChange={(event) =>
-                                          setEditingSop((prev) =>
-                                            prev && prev.id === sop.id
-                                              ? { ...prev, title: event.target.value }
-                                              : prev,
-                                          )
-                                        }
-                                        className="h-9"
-                                        placeholder="Update Process title"
-                                      />
-                                    ) : (
-                                      <>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSelectSop(sop)}
-                                            className="min-w-0 flex-1 truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                          >
-                                            {sop.title}
-                                          </button>
-                                          <span
-                                            className={cn(
-                                              "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                                              SOP_STATUS_BADGE_STYLES[sop.status],
-                                            )}
-                                          >
-                                            {SOP_STATUS_LABELS[sop.status]}
-                                          </span>
-                                        </div>
-                                        <div className="truncate text-xs text-gray-500">
-                                          {sop.owner} • Updated {sop.lastUpdated}
-                                        </div>
-                                      </>
-                                    )}
-
-                                    {isEditingSop && (
-                                      <div className="space-y-1">
-                                        <Label className="text-xs uppercase tracking-wide text-gray-500">
-                                          Owner
-                                        </Label>
-                                        <select
-                                          className="w-full rounded-lg border px-3 py-2 text-sm"
-                                          value={editingSop?.owner ?? sop.owner}
-                                          onChange={(event) =>
-                                            setEditingSop((prev) =>
-                                              prev && prev.id === sop.id
-                                                ? { ...prev, owner: event.target.value }
-                                                : prev,
-                                            )
-                                          }
-                                        >
-                                          {OWNER_OPTIONS.map((owner) => (
-                                            <option key={owner} value={owner}>
-                                              {owner}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex flex-shrink-0 items-center gap-2">
-                                  {isEditingSop ? (
-                                    <>
-                                      <button
-                                        onClick={saveSopEdit}
-                                        className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
-                                      >
-                                        Save
-                                      </button>
-                                      <button
-                                        onClick={cancelEditSop}
-                                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <button
-                                          type="button"
-                                          className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
-                                          aria-label={`Process actions for ${sop.title}`}
-                                        >
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end" className="w-44">
-                                        <DropdownMenuItem
-                                          onSelect={(event) => {
-                                            event.preventDefault()
-                                            startEditSop(category.id, sop)
-                                          }}
-                                        >
-                                          <Pencil className="mr-2 h-4 w-4" /> Edit
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                          onSelect={(event) => {
-                                            event.preventDefault()
-                                            handleDeleteSop(category.id, sop.id)
-                                          }}
-                                          className="text-red-600 focus:text-red-600"
-                                        >
-                                          <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  )}
-                                </div>
-                              </div>
-                            </li>
-                          )
-                        })}
-                      </ul>
-
-                      {addSopVisible && (
-                        <div className="space-y-4 border-t bg-gray-50 p-4">
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-900">Add Process</h4>
-                            <p className="text-xs text-gray-500">
-                              Capture a quick description and starter steps.
-                            </p>
-                          </div>
-                          <Input
-                            value={sopForm.title}
-                            onChange={(event) =>
-                              handleNewSopInputChange(category.id, "title", event.target.value)
-                            }
-                            placeholder="Process title"
-                          />
-                          <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                              Process owner
-                            </div>
-                            <div className="font-medium text-gray-900">{PROCESS_CREATOR_NAME}</div>
-                            <p className="mt-1 text-xs text-gray-500">
-                              Automatically assigned to the process creator.
-                            </p>
-                          </div>
-                          <div className="space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                              Import or start from
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {SOP_IMPORT_OPTIONS.map((option) => (
-                                <button
-                                  key={`${category.id}-${option.id}`}
-                                  type="button"
-                                  title={option.name}
-                                  className="group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600"
-                                >
-                                  <option.Logo />
-                                  <span className="text-center leading-tight">{option.name}</span>
-                                </button>
-                              ))}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setAiPromptDraft(sopForm.content || "")
-                                  setAiPromptCategory(category.id)
-                                }}
-                                aria-label="Generate Process with AI"
+                                onClick={() => handleToggleAddSop(category.id)}
+                                aria-pressed={addSopVisible}
+                                aria-label="Toggle Add Process"
                                 className={cn(
-                                  "group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
-                                  sopForm.content.trim() && "border-blue-300 text-blue-600 hover:border-blue-300",
+                                  "rounded-full p-2 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40",
+                                  addSopVisible && "bg-blue-50 text-blue-600 hover:bg-blue-100",
                                 )}
                               >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-blue-500 text-white">
-                                  <Sparkles className="h-4 w-4" />
-                                </div>
-                                <span className="text-center leading-tight">AI process</span>
+                                <Plus
+                                  className={cn(
+                                    "h-4 w-4 transition",
+                                    addSopVisible && "rotate-45",
+                                  )}
+                                />
                               </button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                    aria-label={`Category actions for ${category.title}`}
+                                  >
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-40">
+                                  <DropdownMenuItem
+                                    onSelect={(event) => {
+                                      event.preventDefault()
+                                      startEditCategory(category)
+                                    }}
+                                  >
+                                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={(event) => {
+                                      event.preventDefault()
+                                      void handleDeleteCategory(category.id)
+                                    }}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
-                          </div>
-                          {sopForm.content.trim() && (
-                            <div className="rounded-lg border border-dashed bg-white px-3 py-2 text-xs text-gray-600">
-                              <div className="font-semibold text-gray-700">AI prompt captured</div>
-                              <p className="mt-1 whitespace-pre-wrap">{sopForm.content}</p>
+                          </>
+                        )}
+                      </div>
+
+                      {expanded[category.id] && (
+                        <div className="transition-all">
+                          <ul className="divide-y">
+                            {category.sops.map((sop) => {
+                              const isEditingSop = editingSop?.id === sop.id
+
+                              return (
+                                <li key={sop.id} className="space-y-2 p-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                                      <FileText className="mt-1 h-5 w-5 shrink-0" />
+                                      <div className="min-w-0 space-y-2">
+                                        {isEditingSop ? (
+                                          <Input
+                                            value={editingSop?.title ?? sop.title}
+                                            onChange={(event) =>
+                                              setEditingSop((prev) =>
+                                                prev && prev.id === sop.id
+                                                  ? { ...prev, title: event.target.value }
+                                                  : prev,
+                                              )
+                                            }
+                                            className="h-9"
+                                            placeholder="Update Process title"
+                                          />
+                                        ) : (
+                                          <>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSelectSop(sop)}
+                                                className="min-w-0 flex-1 truncate text-left font-medium text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                              >
+                                                {sop.title}
+                                              </button>
+                                              <span
+                                                className={cn(
+                                                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                                                  SOP_STATUS_BADGE_STYLES[sop.status],
+                                                )}
+                                              >
+                                                {SOP_STATUS_LABELS[sop.status]}
+                                              </span>
+                                            </div>
+                                            <div className="truncate text-xs text-gray-500">
+                                              {sop.owner} • Updated {sop.lastUpdated}
+                                            </div>
+                                          </>
+                                        )}
+
+                                        {isEditingSop && (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs uppercase tracking-wide text-gray-500">
+                                              Owner
+                                            </Label>
+                                            <select
+                                              className="w-full rounded-lg border px-3 py-2 text-sm"
+                                              value={editingSop?.owner ?? sop.owner}
+                                              onChange={(event) =>
+                                                setEditingSop((prev) =>
+                                                  prev && prev.id === sop.id
+                                                    ? { ...prev, owner: event.target.value }
+                                                    : prev,
+                                                )
+                                              }
+                                            >
+                                              {OWNER_OPTIONS.map((owner) => (
+                                                <option key={owner} value={owner}>
+                                                  {owner}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-shrink-0 items-center gap-2">
+                                      {isEditingSop ? (
+                                        <>
+                                          <button
+                                            onClick={saveSopEdit}
+                                            className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-500"
+                                          >
+                                            Save
+                                          </button>
+                                          <button
+                                            onClick={cancelEditSop}
+                                            className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-50"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button
+                                              type="button"
+                                              className="rounded-full p-2 text-gray-500 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40"
+                                              aria-label={`Process actions for ${sop.title}`}
+                                            >
+                                              <MoreHorizontal className="h-4 w-4" />
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-44">
+                                            <DropdownMenuItem
+                                              onSelect={(event) => {
+                                                event.preventDefault()
+                                                startEditSop(category.id, sop)
+                                              }}
+                                            >
+                                              <Pencil className="mr-2 h-4 w-4" /> Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                              onSelect={(event) => {
+                                                event.preventDefault()
+                                                handleDeleteSop(category.id, sop.id)
+                                              }}
+                                              className="text-red-600 focus:text-red-600"
+                                            >
+                                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      )}
+                                    </div>
+                                  </div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+
+                          {addSopVisible && (
+                            <div className="space-y-4 border-t bg-gray-50 p-4">
+                              <div>
+                                <h4 className="text-sm font-semibold text-gray-900">Add Process</h4>
+                                <p className="text-xs text-gray-500">
+                                  Capture a quick description and starter steps.
+                                </p>
+                              </div>
+                              <Input
+                                value={sopForm.title}
+                                onChange={(event) =>
+                                  handleNewSopInputChange(category.id, "title", event.target.value)
+                                }
+                                placeholder="Process title"
+                              />
+                              <div className="rounded-lg border bg-white px-3 py-2 text-sm text-gray-700">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                  Process owner
+                                </div>
+                                <div className="font-medium text-gray-900">{PROCESS_CREATOR_NAME}</div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Automatically assigned to the process creator.
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                  Import or start from
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {SOP_IMPORT_OPTIONS.map((option) => (
+                                    <button
+                                      key={`${category.id}-${option.id}`}
+                                      type="button"
+                                      title={option.name}
+                                      className="group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600"
+                                    >
+                                      <option.Logo />
+                                      <span className="text-center leading-tight">{option.name}</span>
+                                    </button>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setAiPromptDraft(sopForm.content || "")
+                                      setAiPromptCategory(category.id)
+                                    }}
+                                    aria-label="Generate Process with AI"
+                                    className={cn(
+                                      "group flex min-w-[72px] flex-col items-center gap-1.5 rounded-md border border-dashed border-gray-200 bg-white p-2 text-[11px] font-medium text-gray-600 transition hover:border-blue-200 hover:text-blue-600",
+                                      sopForm.content.trim() && "border-blue-300 text-blue-600 hover:border-blue-300",
+                                    )}
+                                  >
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-purple-500 to-blue-500 text-white">
+                                      <Sparkles className="h-4 w-4" />
+                                    </div>
+                                    <span className="text-center leading-tight">AI process</span>
+                                  </button>
+                                </div>
+                              </div>
+                              {sopForm.content.trim() && (
+                                <div className="rounded-lg border border-dashed bg-white px-3 py-2 text-xs text-gray-600">
+                                  <div className="font-semibold text-gray-700">AI prompt captured</div>
+                                  <p className="mt-1 whitespace-pre-wrap">{sopForm.content}</p>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => handleAddSop(category.id)}
+                                disabled={newSopDisabled}
+                                className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <Plus className="h-4 w-4" /> Add Process
+                              </button>
+                              <Dialog
+                                open={aiPromptCategory === category.id}
+                                onOpenChange={(open) => {
+                                  if (!open) {
+                                    setAiPromptCategory(null)
+                                    setAiPromptDraft("")
+                                  }
+                                }}
+                              >
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Generate Process with AI</DialogTitle>
+                                    <DialogDescription>
+                                      Describe the process you want to document and we will craft a starter process.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <Textarea
+                                    value={aiPromptDraft}
+                                    onChange={(event) => setAiPromptDraft(event.target.value)}
+                                    placeholder="e.g. Create an onboarding checklist for new customer success hires"
+                                  />
+                                  <DialogFooter>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAiPromptCategory(null)
+                                        setAiPromptDraft("")
+                                      }}
+                                      className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const trimmedPrompt = aiPromptDraft.trim()
+                                        if (trimmedPrompt) {
+                                          handleNewSopInputChange(category.id, "content", trimmedPrompt)
+                                        }
+                                        setAiPromptCategory(null)
+                                        setAiPromptDraft("")
+                                      }}
+                                      disabled={!aiPromptDraft.trim()}
+                                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      Use prompt
+                                    </button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
                             </div>
                           )}
-                          <button
-                            onClick={() => handleAddSop(category.id)}
-                            disabled={newSopDisabled}
-                            className="inline-flex items-center justify-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Plus className="h-4 w-4" /> Add Process
-                          </button>
-                          <Dialog
-                            open={aiPromptCategory === category.id}
-                            onOpenChange={(open) => {
-                              if (!open) {
-                                setAiPromptCategory(null)
-                                setAiPromptDraft("")
-                              }
-                            }}
-                          >
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Generate Process with AI</DialogTitle>
-                                <DialogDescription>
-                                  Describe the process you want to document and we will craft a starter process.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <Textarea
-                                value={aiPromptDraft}
-                                onChange={(event) => setAiPromptDraft(event.target.value)}
-                                placeholder="e.g. Create an onboarding checklist for new customer success hires"
-                              />
-                              <DialogFooter>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setAiPromptCategory(null)
-                                    setAiPromptDraft("")
-                                  }}
-                                  className="rounded-lg border px-3 py-2 text-sm hover:bg-gray-50"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const trimmedPrompt = aiPromptDraft.trim()
-                                    if (trimmedPrompt) {
-                                      handleNewSopInputChange(category.id, "content", trimmedPrompt)
-                                    }
-                                    setAiPromptCategory(null)
-                                    setAiPromptDraft("")
-                                  }}
-                                  disabled={!aiPromptDraft.trim()}
-                                  className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Use prompt
-                                </button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              )
-            ))}
+                  )
+                })}
+              </>
+            )}
           </div>
         )}
 
